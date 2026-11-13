@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DocPocket SMS RDV - Application Médicale</title>
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0284c7">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="DocPocket SMS RDV">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SMS RDV">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="header-container">
+      <a href="#" class="brand">
+        <img src="icons/icon-192.png" alt="DocPocket" class="brand-icon">
+        <div class="brand-text">
+          <h1>DocPocket SMS RDV</h1>
+          <span id="header-doctor-name">Cabinet Médical • Rappels 48h</span>
+        </div>
+      </a>
+
+      <div class="header-actions">
+        <div id="status-pill" class="status-pill" title="Cliquez pour changer le mode de connexion">
+          <span class="status-dot"></span>
+          <span id="status-text">Mode Local</span>
+        </div>
+
+        <button id="btn-install-pwa" class="btn btn-sm btn-install" style="display: none;">
+          📲 Installer l'App
+        </button>
+
+        <button id="btn-sync" class="btn btn-sm btn-secondary" title="Synchroniser avec le serveur PC">
+          🔄 Synchro
+        </button>
+
+        <button id="btn-open-settings" class="btn btn-sm btn-secondary" title="Paramètres">
+          ⚙️
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Install Banner (shown on mobile/desktop when PWA installable) -->
+    <div id="install-banner" class="install-banner">
+      <div class="install-banner-text">
+        <h4>Installer DocPocket SMS RDV sur votre écran d'accueil</h4>
+        <p>Accédez instantanément à la gestion de vos rendez-vous, même hors connexion.</p>
+      </div>
+      <button id="banner-install-btn" class="btn btn-sm btn-secondary" style="background: white; color: var(--primary);">
+        Installer
+      </button>
+    </div>
+
+    <!-- Stats Dashboard -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon blue">📅</div>
+        <div class="stat-data">
+          <h3 id="stat-today">0</h3>
+          <p>RDV Aujourd'hui</p>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon yellow">⏳</div>
+        <div class="stat-data">
+          <h3 id="stat-pending">0</h3>
+          <p>En attente de rappel (48h)</p>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon green">✅</div>
+        <div class="stat-data">
+          <h3 id="stat-sent">0</h3>
+          <p>Rappels envoyés</p>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon purple">👥</div>
+        <div class="stat-data">
+          <h3 id="stat-total">0</h3>
+          <p>Total Rendez-vous</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Content Grid: Form + Appointments List -->
+    <div class="content-grid">
+      
+      <!-- Appointment Form -->
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title" id="form-title">
+            <span>📝</span> Nouveau Rendez-Vous
+          </h2>
+          <button id="btn-reset-form" class="btn btn-sm btn-secondary" type="button">Effacer</button>
+        </div>
+        <div class="card-body">
+          <form id="appointment-form">
+            <input type="hidden" id="edit-id" value="">
+
+            <div class="form-group">
+              <label for="patient-name">Nom et Prénom du Patient *</label>
+              <input type="text" id="patient-name" required placeholder="Ex: Jean Dupont">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="patient-phone">Téléphone portable *</label>
+                <input type="tel" id="patient-phone" required placeholder="Ex: 0612345678">
+              </div>
+
+              <div class="form-group">
+                <label for="patient-email">Email (optionnel)</label>
+                <input type="email" id="patient-email" placeholder="patient@email.com">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="appointment-date">Date du Rendez-Vous *</label>
+                <input type="date" id="appointment-date" required>
+                <div class="quick-dates">
+                  <button type="button" class="quick-date-btn" data-days="0">Aujourd'hui</button>
+                  <button type="button" class="quick-date-btn" data-days="1">Demain</button>
+                  <button type="button" class="quick-date-btn" data-days="2">+48h</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="appointment-time">Heure du RDV *</label>
+                <input type="time" id="appointment-time" required value="09:00">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="sms-language">Langue du rappel</label>
+              <select id="sms-language">
+                <option value="fr" selected>Français</option>
+                <option value="ar">Arabe (العربية)</option>
+                <option value="en">Anglais (English)</option>
+              </select>
+            </div>
+
+            <!-- Live SMS Preview -->
+            <div class="sms-preview-card">
+              <div class="sms-preview-header">
+                <span>Aperçu du SMS (programmé à 48h)</span>
+                <span id="sms-char-count">0 car.</span>
+              </div>
+              <div id="sms-preview-text" class="sms-preview-text">
+                Chargement de l'aperçu...
+              </div>
+            </div>
+
+            <div style="margin-top: 1.25rem;">
+              <button type="submit" id="btn-submit" class="btn btn-primary" style="width: 100%;">
+                💾 Enregistrer & Programmer (48h)
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Appointments List & Management -->
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span>📋</span> Rendez-Vous & Statut des Rappels
+          </h2>
+        </div>
+
+        <div class="card-body">
+          <!-- Filter & Search Bar -->
+          <div class="filter-bar">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="search-input" placeholder="Rechercher par patient, téléphone ou date...">
+            </div>
+
+            <div class="filter-tabs">
+              <button class="filter-tab active" data-filter="all">Tous (<span id="count-all">0</span>)</button>
+              <button class="filter-tab" data-filter="today">Aujourd'hui (<span id="count-today">0</span>)</button>
+              <button class="filter-tab" data-filter="upcoming">À venir (<span id="count-upcoming">0</span>)</button>
+              <button class="filter-tab" data-filter="pending">En attente (<span id="count-pending">0</span>)</button>
+              <button class="filter-tab" data-filter="sent">Envoyés (<span id="count-sent">0</span>)</button>
+            </div>
+          </div>
+
+          <!-- Appointments Table -->
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>Contact</th>
+                  <th>Date & Heure</th>
+                  <th>Délai</th>
+                  <th>Statut Rappel</th>
+                  <th style="text-align: right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="appointments-table-body">
+                <!-- Dynamically loaded rows -->
+              </tbody>
+            </table>
+
+            <div id="empty-state" class="empty-state" style="display: none;">
+              <div class="empty-state-icon">📅</div>
+              <h3>Aucun rendez-vous trouvé</h3>
+              <p>Ajoutez un nouveau rendez-vous via le formulaire à gauche.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-overlay">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="card-title"><span>⚙️</span> Paramètres de l'Application</h3>
+        <button id="btn-close-settings" class="btn-action" style="font-size: 1.2rem;">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <h4 style="margin-bottom: 0.75rem; color: var(--primary);">Synchronisation avec le Cabinet</h4>
+
+        <div class="form-group">
+          <label for="sync-mode">Mode de fonctionnement</label>
+          <select id="sync-mode">
+            <option value="local">Mode Autonome / Hors-ligne (Navigateur & PWA)</option>
+            <option value="server">Serveur Local PC / Wi-Fi (API Express)</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="server-url-group">
+          <label for="server-url">Adresse du Serveur PC (API)</label>
+          <input type="text" id="server-url" placeholder="ex: http://192.168.1.15:3000 ou http://localhost:3000">
+          <small style="color: var(--text-muted); font-size: 0.75rem;">
+            Permet de synchroniser les rendez-vous en direct avec l'application PC et le téléphone Android.
+          </small>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border); margin: 1.25rem 0;">
+
+        <h4 style="margin-bottom: 0.75rem; color: var(--primary);">Configuration du Médecin</h4>
+
+        <div class="form-group">
+          <label for="setting-doctor-name">Nom du Médecin</label>
+          <input type="text" id="setting-doctor-name" placeholder="Dr. ...">
+        </div>
+
+        <div class="form-group">
+          <label for="setting-reminder-hours">Délai du Rappel SMS (en heures avant le RDV)</label>
+          <input type="number" id="setting-reminder-hours" value="48" min="1" max="168">
+          <small style="color: var(--text-muted); font-size: 0.75rem;">Par défaut : 48 heures (2 jours avant le rendez-vous).</small>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border); margin: 1.25rem 0;">
+
+        <h4 style="margin-bottom: 0.75rem; color: var(--primary);">Modèles des SMS</h4>
+
+        <div class="form-group">
+          <label for="template-fr">Modèle Français</label>
+          <textarea id="template-fr" rows="2" style="font-size: 0.85rem;"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="template-ar" style="direction: rtl;">Modèle Arabe (العربية)</label>
+          <textarea id="template-ar" rows="2" style="font-size: 0.85rem; direction: rtl;"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="template-en">Modèle Anglais</label>
+          <textarea id="template-en" rows="2" style="font-size: 0.85rem;"></textarea>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border); margin: 1.25rem 0;">
+
+        <h4 style="margin-bottom: 0.75rem; color: var(--primary);">Sauvegarde & Export</h4>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button id="btn-export-json" class="btn btn-sm btn-secondary" type="button">📥 Exporter (JSON)</button>
+          <button id="btn-export-csv" class="btn btn-sm btn-secondary" type="button">📊 Exporter (CSV)</button>
+          <label class="btn btn-sm btn-secondary" style="cursor: pointer; margin-bottom: 0;">
+            📤 Importer (JSON)
+            <input type="file" id="file-import-json" accept=".json" style="display: none;">
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btn-cancel-settings" class="btn btn-secondary">Annuler</button>
+        <button id="btn-save-settings" class="btn btn-primary">Enregistrer les Paramètres</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast">Rendez-vous enregistré avec succès !</div>
+
+  <script src="app.js"></script>
+</body>
+</html>
