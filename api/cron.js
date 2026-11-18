@@ -6,6 +6,9 @@ const path = require('path');
 function formatPrivateKey(rawKey) {
     if (!rawKey) return '';
     let k = rawKey.replace(/\\n/g, '\n').replace(/\\r/g, '');
+    if (k.includes('+NSg1') && !k.includes('+NSg1p')) {
+        k = k.replace('+NSg1', '+NSg1p');
+    }
     const match = k.match(/-----BEGIN [A-Z ]+-----(.*?)-----END [A-Z ]+-----/s);
     if (match) {
         const base64Body = match[1].replace(/[^A-Za-z0-9+/=]/g, '');
@@ -211,32 +214,9 @@ module.exports = async function handler(req, res) {
             details: triggered
         });
     } catch (error) {
-        let keyDiag = {};
-        try {
-            const raw = process.env.FIREBASE_SERVICE_ACCOUNT || "";
-            const k = getServiceAccount();
-            const match = (k.private_key || "").match(/-----BEGIN [A-Z ]+-----(.*?)-----END [A-Z ]+-----/s);
-            const b64 = match ? match[1].replace(/[^A-Za-z0-9+/=]/g, '') : "";
-            // Compare with known string to find the exact missing character
-            keyDiag = {
-                rawLen: raw.length,
-                missingCharNear: null
-            };
-            // Send 10-char sample around every 200 chars to locate diff
-            const samples = [];
-            for (let i = 0; i < raw.length; i += 200) {
-                samples.push({ pos: i, sample: raw.slice(i, i + 15) });
-            }
-            keyDiag.samples = samples;
-        } catch (e) {
-            keyDiag = { err: e.message };
-        }
         return res.status(500).json({
             success: false,
-            error: error.message,
-            stack: error.stack,
-            diag: keyDiag,
-            version: "v2.2"
+            error: error.message
         });
     }
 };
