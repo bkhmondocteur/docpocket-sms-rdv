@@ -99,6 +99,8 @@ function sendFcmPush(token, appt, docId) {
                     dateRdv: String(appt.dateRdv || ""),
                     heureRdv: String(appt.heureRdv || ""),
                     language: String(appt.language || "fr"),
+                    doctorId: String(appt.doctorId || ""),
+                    doctorName: String(appt.doctorName || ""),
                     firebaseKey: docId
                 }
             }
@@ -190,6 +192,8 @@ module.exports = async function handler(req, res) {
                     dateRdv: fields.dateRdv?.stringValue,
                     heureRdv: fields.heureRdv?.stringValue,
                     language: fields.language?.stringValue || 'fr',
+                    doctorId: fields.doctorId?.stringValue || '',
+                    doctorName: fields.doctorName?.stringValue || '',
                     targetFcmToken: fields.targetFcmToken?.stringValue
                 };
 
