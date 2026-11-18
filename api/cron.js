@@ -3,15 +3,25 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+function formatPrivateKey(rawKey) {
+    if (!rawKey) return '';
+    let k = rawKey.replace(/\\n/g, '\n').replace(/\\r/g, '');
+    const match = k.match(/-----BEGIN [A-Z ]+-----(.*?)-----END [A-Z ]+-----/s);
+    if (match) {
+        const base64Body = match[1].replace(/[^A-Za-z0-9+/=]/g, '');
+        const chunked = base64Body.match(/.{1,64}/g).join('\n');
+        return `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
+    }
+    return k;
+}
+
 function getServiceAccount() {
     let key;
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
         let raw = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
-        // Handle case where raw env is base64 encoded or stringified
         try {
             key = JSON.parse(raw);
         } catch (e) {
-            // Maybe it was base64 encoded?
             try {
                 key = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
             } catch (e2) {
@@ -27,13 +37,7 @@ function getServiceAccount() {
     if (!key) throw new Error("Clé de service Firebase introuvable dans FIREBASE_SERVICE_ACCOUNT.");
 
     if (key.private_key) {
-        // Clean up private key:
-        // Replace literal \n or \\n with real newlines
-        key.private_key = key.private_key.replace(/\\n/g, '\n');
-        // Strip any surrounding quotes if present
-        if (key.private_key.startsWith('"') && key.private_key.endsWith('"')) {
-            key.private_key = key.private_key.slice(1, -1);
-        }
+        key.private_key = formatPrivateKey(key.private_key);
     }
     return key;
 }
