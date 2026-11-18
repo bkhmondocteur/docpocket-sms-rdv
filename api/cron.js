@@ -4,15 +4,22 @@ const fs = require('fs');
 const path = require('path');
 
 function getServiceAccount() {
+    let key;
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        key = typeof process.env.FIREBASE_SERVICE_ACCOUNT === 'string'
+            ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+            : process.env.FIREBASE_SERVICE_ACCOUNT;
+    } else {
+        const keyPath = path.join(__dirname, 'service-account.json');
+        if (fs.existsSync(keyPath)) {
+            key = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+        }
     }
-    // Fallback fichier local
-    const keyPath = path.join(__dirname, 'service-account.json');
-    if (fs.existsSync(keyPath)) {
-        return JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+    if (!key) throw new Error("Clé de service Firebase introuvable dans FIREBASE_SERVICE_ACCOUNT.");
+    if (key.private_key) {
+        key.private_key = key.private_key.replace(/\\n/g, '\n');
     }
-    throw new Error("Clé de service Firebase introuvable dans FIREBASE_SERVICE_ACCOUNT.");
+    return key;
 }
 
 function getAccessToken(key) {
