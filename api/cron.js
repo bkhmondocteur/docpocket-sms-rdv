@@ -211,19 +211,30 @@ module.exports = async function handler(req, res) {
             details: triggered
         });
     } catch (error) {
-        let keyDiag = "none";
+        let keyDiag = {};
         try {
+            const raw = process.env.FIREBASE_SERVICE_ACCOUNT || "";
             const k = getServiceAccount();
-            keyDiag = `len=${k.private_key?.length}, starts=${k.private_key?.slice(0, 27)}, ends=${k.private_key?.slice(-25)}, hasNewline=${k.private_key?.includes('\n')}`;
+            const match = (k.private_key || "").match(/-----BEGIN [A-Z ]+-----(.*?)-----END [A-Z ]+-----/s);
+            const b64 = match ? match[1].replace(/[^A-Za-z0-9+/=]/g, '') : "";
+            keyDiag = {
+                rawLen: raw.length,
+                keyLen: k.private_key?.length,
+                b64Len: b64.length,
+                b64Head: b64.slice(0, 20),
+                b64Tail: b64.slice(-20),
+                hasPlus: b64.includes('+'),
+                hasSlash: b64.includes('/')
+            };
         } catch (e) {
-            keyDiag = "error reading key: " + e.message;
+            keyDiag = { err: e.message };
         }
         return res.status(500).json({
             success: false,
             error: error.message,
             stack: error.stack,
             diag: keyDiag,
-            version: "v2.1"
+            version: "v2.2"
         });
     }
 };
