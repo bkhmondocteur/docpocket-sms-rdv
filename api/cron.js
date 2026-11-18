@@ -6,9 +6,18 @@ const path = require('path');
 function getServiceAccount() {
     let key;
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        key = typeof process.env.FIREBASE_SERVICE_ACCOUNT === 'string'
-            ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-            : process.env.FIREBASE_SERVICE_ACCOUNT;
+        let raw = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
+        // Handle case where raw env is base64 encoded or stringified
+        try {
+            key = JSON.parse(raw);
+        } catch (e) {
+            // Maybe it was base64 encoded?
+            try {
+                key = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+            } catch (e2) {
+                throw new Error("Impossible de parser FIREBASE_SERVICE_ACCOUNT: " + e.message);
+            }
+        }
     } else {
         const keyPath = path.join(__dirname, 'service-account.json');
         if (fs.existsSync(keyPath)) {
@@ -16,8 +25,15 @@ function getServiceAccount() {
         }
     }
     if (!key) throw new Error("Clé de service Firebase introuvable dans FIREBASE_SERVICE_ACCOUNT.");
+
     if (key.private_key) {
+        // Clean up private key:
+        // Replace literal \n or \\n with real newlines
         key.private_key = key.private_key.replace(/\\n/g, '\n');
+        // Strip any surrounding quotes if present
+        if (key.private_key.startsWith('"') && key.private_key.endsWith('"')) {
+            key.private_key = key.private_key.slice(1, -1);
+        }
     }
     return key;
 }
@@ -191,6 +207,19 @@ module.exports = async function handler(req, res) {
             details: triggered
         });
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        let keyDiag = "none";
+        try {
+            const k = getServiceAccount();
+            keyDiag = `len=${k.private_key?.length}, starts=${k.private_key?.slice(0, 27)}, ends=${k.private_key?.slice(-25)}, hasNewline=${k.private_key?.includes('\n')}`;
+        } catch (e) {
+            keyDiag = "error reading key: " + e.message;
+        }
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: error.stack,
+            diag: keyDiag,
+            version: "v2.1"
+        });
     }
 };
