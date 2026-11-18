@@ -98,6 +98,7 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
             val finalAppt = newAppointmentData.copy(firebaseKey = firebaseKey, synced = firebaseKey != null)
             val newId = appointmentDao.insertAppointment(finalAppt).toInt()
             scheduleExactReminders(newId, dateRdv, heureRdv)
+            com.docpocket.smsrdv.backup.BackupManager.performAutoBackup(getApplication())
         }
     }
     
@@ -134,6 +135,7 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
 
             appointmentDao.updateAppointment(updatedAppointment.copy(synced = synced))
             scheduleExactReminders(id, dateRdv, heureRdv)
+            com.docpocket.smsrdv.backup.BackupManager.performAutoBackup(getApplication())
         }
     }
 
@@ -172,6 +174,8 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
                 android.app.PendingIntent.FLAG_NO_CREATE or android.app.PendingIntent.FLAG_IMMUTABLE
             )
             oldIntent2?.let { alarmManager.cancel(it) }
+
+            com.docpocket.smsrdv.backup.BackupManager.performAutoBackup(getApplication())
         }
     }
 
@@ -189,7 +193,7 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 val d = f.parse("$cleanDate $cleanTime")
                 if (d != null) return d
-            } catch (_: Exception) {}
+            } catch (e: Exception) {}
         }
         return null
     }
@@ -263,7 +267,7 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                     try {
                         android.widget.Toast.makeText(context, "⏰ Réveil programmé pour $timeFormatted. Vous pouvez verrouiller l'écran.", android.widget.Toast.LENGTH_LONG).show()
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) {}
                 }
             } catch (e: Exception) {
                 try {
@@ -375,6 +379,47 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
                 }
             } catch(e: Exception) {
                 e.printStackTrace()
+            }
+        }
+    }
+
+    fun performManualBackup(onResult: (Result<String>) -> Unit) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val res = com.docpocket.smsrdv.backup.BackupManager.performManualBackup(getApplication())
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onResult(res)
+            }
+        }
+    }
+
+    fun restoreBackup(item: com.docpocket.smsrdv.backup.BackupItem, mode: com.docpocket.smsrdv.backup.RestoreMode, onResult: (com.docpocket.smsrdv.backup.RestoreResult) -> Unit) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val content = com.docpocket.smsrdv.backup.BackupManager.readBackupContent(getApplication(), item)
+            val res = if (!content.isNullOrBlank()) {
+                com.docpocket.smsrdv.backup.BackupManager.restoreFromJson(getApplication(), content, mode)
+            } else {
+                com.docpocket.smsrdv.backup.RestoreResult(false, 0, "Impossible de lire le fichier de sauvegarde.")
+            }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onResult(res)
+            }
+        }
+    }
+
+    fun restoreFromCloud(mode: com.docpocket.smsrdv.backup.RestoreMode, onResult: (com.docpocket.smsrdv.backup.RestoreResult) -> Unit) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val res = com.docpocket.smsrdv.backup.BackupManager.restoreFromCloud(getApplication(), mode)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onResult(res)
+            }
+        }
+    }
+
+    fun restoreFromJsonContent(content: String, mode: com.docpocket.smsrdv.backup.RestoreMode, onResult: (com.docpocket.smsrdv.backup.RestoreResult) -> Unit) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val res = com.docpocket.smsrdv.backup.BackupManager.restoreFromJson(getApplication(), content, mode)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onResult(res)
             }
         }
     }

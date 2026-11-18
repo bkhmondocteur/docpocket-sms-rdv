@@ -353,25 +353,50 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
                         val prefs = context.getSharedPreferences("docpocket_prefs", Context.MODE_PRIVATE)
                         val configuredHours = prefs.getInt("reminder_hours", 48)
 
-                        Surface(
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
+                        Card(
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+                            ),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                ) {
+                                    Text("⏰", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(end = 8.dp))
+                                    Column {
+                                        Text(
+                                            "Délai d'envoi du rappel",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            "${configuredHours}h avant le rendez-vous",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                                OutlinedButton(
+                                    onClick = onNavigateToSettings,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(34.dp)
                                 ) {
                                     Text(
-                                        "⏰ Délai de rappel : ${configuredHours}h avant le RDV",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold
+                                        "Modifier",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
-                                    TextButton(onClick = onNavigateToSettings) {
-                                        Text("Modifier", style = MaterialTheme.typography.bodySmall)
-                                    }
                                 }
                             }
                         }

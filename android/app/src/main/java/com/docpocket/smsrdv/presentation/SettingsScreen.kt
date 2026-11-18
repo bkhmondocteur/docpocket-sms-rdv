@@ -1,6 +1,9 @@
 package com.docpocket.smsrdv.presentation
 
 import android.content.Context
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,8 +29,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.docpocket.smsrdv.BuildConfig
+import com.docpocket.smsrdv.backup.BackupManager
 import com.docpocket.smsrdv.ui.theme.AppTheme
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,8 +63,35 @@ fun SettingsScreen(
     var templateAr by remember { mutableStateOf(prefs.getString("template_ar", defaultAr) ?: defaultAr) }
     var templateEn by remember { mutableStateOf(prefs.getString("template_en", defaultEn) ?: defaultEn) }
 
+    val coroutineScope = rememberCoroutineScope()
+    var showRestoreDialog by remember { mutableStateOf(false) }
+    var isBackingUp by remember { mutableStateOf(false) }
+    var backupFolderDisplayName by remember { mutableStateOf(BackupManager.getBackupFolderDisplayName(context)) }
+    var lastBackupTime by remember { mutableStateOf(prefs.getLong(BackupManager.KEY_LAST_BACKUP_TIME, 0L)) }
+    var lastBackupCount by remember { mutableStateOf(prefs.getInt(BackupManager.KEY_LAST_BACKUP_COUNT, 0)) }
+
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            BackupManager.setBackupFolderUri(context, uri)
+            backupFolderDisplayName = BackupManager.getBackupFolderDisplayName(context)
+            Toast.makeText(context, "Dossier de sauvegarde mis à jour !", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     if (showAboutDialog) {
         AboutDialog(onDismiss = { showAboutDialog = false })
+    }
+
+    if (showRestoreDialog) {
+        RestoreDialog(
+            onDismiss = { showRestoreDialog = false },
+            onRestored = {
+                lastBackupTime = prefs.getLong(BackupManager.KEY_LAST_BACKUP_TIME, 0L)
+                lastBackupCount = prefs.getInt(BackupManager.KEY_LAST_BACKUP_COUNT, 0)
+            }
+        )
     }
 
     Scaffold(
@@ -254,7 +288,126 @@ fun SettingsScreen(
 
             Divider(modifier = Modifier.padding(vertical = 4.dp))
 
-            // --- 5. PLANIFICATION DU RAPPEL SMS ---
+            // --- 5. SAUVEGARDE & RESTAURATION DES PATIENTS ---
+            Text("Sauvegarde & Restauration des Patients", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Statut double sauvegarde
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🛡️", fontSize = 22.sp, modifier = Modifier.padding(end = 8.dp))
+                        Column {
+                            Text(
+                                "Double Protection Automatique",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                "Sauvegarde locale (5 dernières versions tournantes) + ☁️ Cloud Firestore.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Emplacement du dossier
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 6.dp)) {
+                                Text("Dossier de sauvegarde :", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    backupFolderDisplayName,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = { folderPickerLauncher.launch(null) },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("Changer", fontSize = 11.sp)
+                            }
+                        }
+                    }
+
+                    // Statut dernière sauvegarde
+                    if (lastBackupTime > 0L) {
+                        val sdf = SimpleDateFormat("dd/MM/yyyy à HH:mm", Locale.getDefault())
+                        Text(
+                            "Dernière sauvegarde : ${sdf.format(Date(lastBackupTime))} ($lastBackupCount patient(s))",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // Boutons d'action : Sauvegarder maintenant et Restaurer
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    isBackingUp = true
+                                    val res = BackupManager.performManualBackup(context)
+                                    isBackingUp = false
+                                    res.onSuccess { msg ->
+                                        lastBackupTime = prefs.getLong(BackupManager.KEY_LAST_BACKUP_TIME, 0L)
+                                        lastBackupCount = prefs.getInt(BackupManager.KEY_LAST_BACKUP_COUNT, 0)
+                                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                    }.onFailure { err ->
+                                        Toast.makeText(context, "Erreur sauvegarde: ${err.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            },
+                            enabled = !isBackingUp,
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            if (isBackingUp) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
+                            } else {
+                                Text("💾 Sauvegarder", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = { showRestoreDialog = true },
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("🔄 Restaurer", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+            // --- 6. PLANIFICATION DU RAPPEL SMS ---
             Text("Planification du Rappel SMS", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
             OutlinedTextField(

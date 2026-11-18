@@ -15,15 +15,18 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -43,6 +46,17 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+    }
+
+    private val chooseBackupFolderLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            com.docpocket.smsrdv.backup.BackupManager.setBackupFolderUri(applicationContext, uri)
+            Toast.makeText(this, "Dossier de sauvegarde configuré avec succès !", Toast.LENGTH_SHORT).show()
+        } else {
+            com.docpocket.smsrdv.backup.BackupManager.setFolderConfigured(applicationContext, true)
+        }
     }
 
     private val requestMultiplePermissionsLauncher = registerForActivityResult(
@@ -144,6 +158,50 @@ class MainActivity : ComponentActivity() {
             }
 
             var showSettings by remember { mutableStateOf(false) }
+
+            var showInitialBackupSetup by remember {
+                mutableStateOf(isLicensed && !com.docpocket.smsrdv.backup.BackupManager.isFolderConfigured(applicationContext))
+            }
+
+            if (showInitialBackupSetup) {
+                AlertDialog(
+                    onDismissRequest = {
+                        com.docpocket.smsrdv.backup.BackupManager.setFolderConfigured(applicationContext, true)
+                        showInitialBackupSetup = false
+                    },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("📁", fontSize = 24.sp, modifier = Modifier.padding(end = 8.dp))
+                            Text("Dossier de Sauvegarde", fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column {
+                            Text(
+                                "Pour sécuriser automatiquement la liste de vos patients et leurs coordonnées, veuillez choisir un dossier de destination (ex: Documents).\n\nUne sauvegarde locale tournante (5 max) et Cloud Firestore sera effectuée après chaque modification.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            showInitialBackupSetup = false
+                            chooseBackupFolderLauncher.launch(null)
+                        }) {
+                            Text("Choisir mon dossier")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            com.docpocket.smsrdv.backup.BackupManager.setFolderConfigured(applicationContext, true)
+                            showInitialBackupSetup = false
+                            Toast.makeText(this@MainActivity, "Dossier par défaut sélectionné (Documents/DocPocket_Sauvegardes)", Toast.LENGTH_LONG).show()
+                        }) {
+                            Text("Dossier par défaut")
+                        }
+                    }
+                )
+            }
 
             DocPocketTheme(selectedTheme = currentTheme) {
                 Surface(

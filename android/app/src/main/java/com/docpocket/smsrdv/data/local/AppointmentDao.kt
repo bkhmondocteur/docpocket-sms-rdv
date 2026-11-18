@@ -49,4 +49,13 @@ interface AppointmentDao {
     
     @Query("DELETE FROM RendezVous WHERE id = :id")
     suspend fun deleteAppointment(id: Int)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAppointments(appointments: List<AppointmentEntity>)
+
+    @Query("SELECT * FROM RendezVous ORDER BY id ASC")
+    suspend fun getAllAppointmentsList(): List<AppointmentEntity>
+
+    @Query("DELETE FROM RendezVous")
+    suspend fun deleteAllAppointments()
 }

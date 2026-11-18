@@ -16,8 +16,8 @@ android {
         applicationId = "com.docpocket.smsrdv"
         minSdk = 26 // Android 8.0 minimum for java.time API and newer WorkManager
         targetSdk = 34
-        versionCode = 2
-        versionName = "2.0.0"
+        versionCode = 3
+        versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -123,4 +123,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+
+    // DocumentFile for Storage Access Framework (SAF) folder picker
+    implementation("androidx.documentfile:documentfile:1.0.1")
 }

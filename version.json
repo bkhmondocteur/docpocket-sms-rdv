@@ -1,8 +1,8 @@
 {
-  "versionCode": 2,
-  "versionName": "2.0.0",
+  "versionCode": 3,
+  "versionName": "2.1.0",
   "releaseDate": "2026-11-18",
-  "changelog": "- 🎨 10 Nouveaux Thèmes Médicaux au choix dans Paramètres\n- ℹ️ Menu « À propos » avec mise à jour directe en 1 clic (comme ComptaPocket SMS)\n- 🛡️ Isolation hermétique multi-médecins pour cabinets de groupe\n- 🧹 Suppression définitive des champs de test pour une interface 100% production\n- ⚡ Synchronisation Cloud optimisée",
-  "downloadUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/download/v2.0.0/DocPocket-SMS-RDV.apk",
-  "releaseUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/tag/v2.0.0"
+  "changelog": "- 📁 Sauvegarde et Restauration complètes des patients avec leurs coordonnées\n- 💾 Sauvegarde automatique locale (5 fichiers tournants) + ☁️ Cloud Firestore\n- 🔄 Choix personnalisable du dossier de sauvegarde sur le téléphone\n- ✨ Fix esthétique du bouton Modifier pour un affichage parfaitement fluide\n- 🎨 10 Thèmes Médicaux personnalisables",
+  "downloadUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/download/v2.1.0/DocPocket-SMS-RDV.apk",
+  "releaseUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/tag/v2.1.0"
 }
