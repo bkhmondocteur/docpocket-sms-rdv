@@ -217,15 +217,17 @@ module.exports = async function handler(req, res) {
             const k = getServiceAccount();
             const match = (k.private_key || "").match(/-----BEGIN [A-Z ]+-----(.*?)-----END [A-Z ]+-----/s);
             const b64 = match ? match[1].replace(/[^A-Za-z0-9+/=]/g, '') : "";
+            // Compare with known string to find the exact missing character
             keyDiag = {
                 rawLen: raw.length,
-                keyLen: k.private_key?.length,
-                b64Len: b64.length,
-                b64Head: b64.slice(0, 20),
-                b64Tail: b64.slice(-20),
-                hasPlus: b64.includes('+'),
-                hasSlash: b64.includes('/')
+                missingCharNear: null
             };
+            // Send 10-char sample around every 200 chars to locate diff
+            const samples = [];
+            for (let i = 0; i < raw.length; i += 200) {
+                samples.push({ pos: i, sample: raw.slice(i, i + 15) });
+            }
+            keyDiag.samples = samples;
         } catch (e) {
             keyDiag = { err: e.message };
         }
