@@ -37,6 +37,11 @@
           <span id="status-text">Mode Local</span>
         </div>
 
+        <div class="status-pill online" title="Service Réveil Cloud 24/7">
+          <span class="status-dot"></span>
+          <span>Cloud 24/7 : 🟢 Actif</span>
+        </div>
+
         <button id="btn-install-pwa" class="btn btn-sm btn-install" style="display: none;">
           📲 Installer l'App
         </button>
@@ -123,7 +128,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label for="patient-phone">Téléphone portable *</label>
-                <input type="tel" id="patient-phone" required placeholder="Ex: 0612345678">
+                <input type="tel" id="patient-phone" inputmode="numeric" pattern="[0-9]*" required placeholder="Ex: 0612345678">
               </div>
 
               <div class="form-group">
@@ -208,6 +213,7 @@
             <table>
               <thead>
                 <tr>
+                  <th style="width: 90px;">SMS Immédiat</th>
                   <th>Patient</th>
                   <th>Contact</th>
                   <th>Date & Heure</th>

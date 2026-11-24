@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
-  "versionName": "2.1.0",
-  "releaseDate": "2026-11-18",
-  "changelog": "- 📁 Sauvegarde et Restauration complètes des patients avec leurs coordonnées\n- 💾 Sauvegarde automatique locale (5 fichiers tournants) + ☁️ Cloud Firestore\n- 🔄 Choix personnalisable du dossier de sauvegarde sur le téléphone\n- ✨ Fix esthétique du bouton Modifier pour un affichage parfaitement fluide\n- 🎨 10 Thèmes Médicaux personnalisables",
-  "downloadUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/download/v2.1.0/DocPocket-SMS-RDV.apk",
-  "releaseUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/tag/v2.1.0"
+  "versionCode": 4,
+  "versionName": "2.2.0",
+  "releaseDate": "2026-11-24",
+  "changelog": "- 🔢 Clavier numérique automatique sur le champ téléphone\n- 🚀 Bouton d'envoi immédiat de SMS devant chaque rendez-vous planifié\n- 🧹 Interface épurée : suppression du bouton flottant 'Forcer SMS'\n- 🟢 Statut Réveil Cloud 24/7 simplifié sous forme de badge élégant (sans texte superflu)",
+  "downloadUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/download/v2.2.0/DocPocket-SMS-RDV.apk",
+  "releaseUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/tag/v2.2.0"
 }

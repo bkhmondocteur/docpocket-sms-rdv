@@ -491,6 +491,9 @@ function renderAppointments() {
 
     tr.innerHTML = `
       <td>
+        ${cleanPhone ? `<button class="btn btn-sm btn-primary" title="Envoyer le SMS immédiatement" style="padding: 4px 8px; font-size: 0.75rem; white-space: nowrap;" onclick="sendSmsNow('${escapeHtml(app.telephone)}', '${escapeHtml(app.texteSms || '')}', '${app.id}')">🚀 SMS</button>` : '-'}
+      </td>
+      <td>
         <div class="patient-info">${escapeHtml(app.nomPatient || '-')}</div>
         <small style="color:var(--text-muted); font-size:0.75rem;">Langue: ${app.language ? app.language.toUpperCase() : 'FR'}</small>
       </td>
@@ -583,6 +586,23 @@ window.sendWhatsApp = function(phone, message) {
   const clean = phone.replace(/[\s-+()]/g, '');
   const url = `https://wa.me/${clean}?text=${encodeURIComponent(message)}`;
   window.open(url, '_blank');
+};
+
+window.sendSmsNow = function(phone, message, id) {
+  if (!phone) {
+    showToast("Numéro de téléphone manquant", "error");
+    return;
+  }
+  const clean = phone.replace(/[\s-]/g, '');
+  const url = `sms:${clean}?body=${encodeURIComponent(message || '')}`;
+  window.open(url, '_blank');
+  if (id) {
+    const app = appointments.find(a => a.id == id);
+    if (app && !app.smsEnvoye) {
+      window.toggleSentStatus(id);
+    }
+  }
+  showToast("Ouverture de l'application SMS...", "success");
 };
 
 // Filter tabs
