@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.docpocket.smsrdv.data.local.AppointmentEntity
@@ -502,15 +503,25 @@ fun AppointmentItem(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = appointment.nomPatient, fontWeight = FontWeight.Bold)
-                Text(text = "${appointment.dateRdv} à ${appointment.heureRdv} | ${appointment.telephone}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = appointment.nomPatient,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${appointment.dateRdv} à ${appointment.heureRdv} | ${appointment.telephone}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("SMS : ", style = MaterialTheme.typography.bodySmall)
                     if (appointment.smsEnvoye) {
                         Icon(Icons.Default.CheckCircle, "Envoyé", tint = Color(0xFF4CAF50), modifier = Modifier.size(16.dp))
-                        Text(" Envoyé", color = Color(0xFF4CAF50), style = MaterialTheme.typography.bodySmall)
+                        Text(" Envoyé", color = Color(0xFF4CAF50), style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     } else {
-                        Text(" En attente", color = Color(0xFFF44336), style = MaterialTheme.typography.bodySmall)
+                        Text(" En attente", color = Color(0xFFF44336), style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
                 }
             }

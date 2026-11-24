@@ -16,8 +16,8 @@ android {
         applicationId = "com.docpocket.smsrdv"
         minSdk = 26 // Android 8.0 minimum for java.time API and newer WorkManager
         targetSdk = 34
-        versionCode = 4
-        versionName = "2.2.0"
+        versionCode = 5
+        versionName = "2.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

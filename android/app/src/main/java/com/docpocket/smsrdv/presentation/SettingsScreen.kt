@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.docpocket.smsrdv.BuildConfig
@@ -254,19 +255,22 @@ fun SettingsScreen(
 
             Divider(modifier = Modifier.padding(vertical = 4.dp))
 
-            // --- 4. RÉVEIL AUTOMATIQUE CLOUD 24/7 (SYMBOLE STATUT ÉPURÉ) ---
+            // --- 4. RÉVEIL CLOUD 24/7 (STATUT ÉPURÉ & ÉLÉGANT) ---
             val fcmToken = prefs.getString("fcm_token", "") ?: ""
             val isCloudActive = fcmToken.isNotBlank()
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Réveil Automatique Cloud 24/7",
+                    "Réveil Cloud 24/7",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
                 Surface(
                     shape = RoundedCornerShape(16.dp),
@@ -275,12 +279,23 @@ fun SettingsScreen(
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    if (isCloudActive) Color(0xFF2E7D32) else Color(0xFFC62828),
+                                    shape = CircleShape
+                                )
+                        )
                         Text(
-                            text = if (isCloudActive) "🟢 Connecté & Actif" else "🔴 Inactif",
+                            text = if (isCloudActive) "Actif" else "Inactif",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
                             color = if (isCloudActive) Color(0xFF2E7D32) else Color(0xFFC62828)
                         )
                     }
@@ -290,7 +305,12 @@ fun SettingsScreen(
             Divider(modifier = Modifier.padding(vertical = 4.dp))
 
             // --- 5. SAUVEGARDE & RESTAURATION DES PATIENTS ---
-            Text("Sauvegarde & Restauration des Patients", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Sauvegarde & Restauration",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
 
             Card(
                 colors = CardDefaults.cardColors(
@@ -305,17 +325,20 @@ fun SettingsScreen(
                 ) {
                     // Statut double sauvegarde
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🛡️", fontSize = 22.sp, modifier = Modifier.padding(end = 8.dp))
-                        Column {
+                        Text("🛡️", fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "Double Protection Automatique",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
+                                maxLines = 1,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                "Sauvegarde locale (5 dernières versions tournantes) + ☁️ Cloud Firestore.",
+                                "Sauvegarde tournante (5 max) & Cloud Firestore",
                                 fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -334,13 +357,14 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f).padding(end = 6.dp)) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                                 Text("Dossier de sauvegarde :", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(
-                                    backupFolderDisplayName,
+                                    "📁 $backupFolderDisplayName",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                             OutlinedButton(
@@ -348,7 +372,7 @@ fun SettingsScreen(
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                 modifier = Modifier.height(32.dp)
                             ) {
-                                Text("Changer", fontSize = 11.sp)
+                                Text("Changer", fontSize = 11.sp, maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -356,12 +380,36 @@ fun SettingsScreen(
                     // Statut dernière sauvegarde
                     if (lastBackupTime > 0L) {
                         val sdf = SimpleDateFormat("dd/MM/yyyy à HH:mm", Locale.getDefault())
-                        Text(
-                            "Dernière sauvegarde : ${sdf.format(Date(lastBackupTime))} ($lastBackupCount patient(s))",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Dernière sauvegarde :", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    sdf.format(Date(lastBackupTime)),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Patients enregistrés :", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    "$lastBackupCount patient(s)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1
+                                )
+                            }
+                        }
                     }
 
                     // Boutons d'action : Sauvegarder maintenant et Restaurer
@@ -391,7 +439,7 @@ fun SettingsScreen(
                             if (isBackingUp) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
                             } else {
-                                Text("💾 Sauvegarder", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("💾 Sauvegarder", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                             }
                         }
 
@@ -400,7 +448,7 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f).height(40.dp),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("🔄 Restaurer", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("🔄 Restaurer", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -414,9 +462,9 @@ fun SettingsScreen(
             OutlinedTextField(
                 value = reminderHours,
                 onValueChange = { reminderHours = it.filter { char -> char.isDigit() } },
-                label = { Text("Délai d'envoi du rappel (heures avant le RDV)") },
+                label = { Text("Délai du rappel (heures avant le RDV)") },
                 placeholder = { Text("48") },
-                supportingText = { Text("Rappel programmé à ${reminderHours.ifBlank { "48" }}h avant l'heure exacte du RDV.") },
+                supportingText = { Text("Rappel programmé à ${reminderHours.ifBlank { "48" }}h avant le RDV.") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
             )

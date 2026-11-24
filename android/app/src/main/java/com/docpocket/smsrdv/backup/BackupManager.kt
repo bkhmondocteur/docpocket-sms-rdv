@@ -93,16 +93,23 @@ object BackupManager {
     fun getBackupFolderDisplayName(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val name = prefs.getString(KEY_BACKUP_FOLDER_NAME, null)
-        if (!name.isNullOrBlank()) return name
+        if (!name.isNullOrBlank()) return formatFolderDisplayName(name)
         val uriStr = prefs.getString(KEY_BACKUP_URI, null)
         if (!uriStr.isNullOrBlank()) {
             return try {
-                Uri.parse(uriStr).lastPathSegment ?: "Dossier externe"
+                val seg = Uri.parse(uriStr).lastPathSegment ?: "Dossier externe"
+                formatFolderDisplayName(seg)
             } catch (e: Exception) {
                 "Dossier externe"
             }
         }
-        return "Documents/DocPocket_Sauvegardes (Par défaut)"
+        return "Documents/DocPocket_Sauvegardes"
+    }
+
+    private fun formatFolderDisplayName(raw: String): String {
+        val decoded = try { Uri.decode(raw) } catch (e: Exception) { raw }
+        val clean = decoded.substringAfterLast(":").substringAfterLast("/").trim()
+        return if (clean.isNotBlank()) clean else decoded
     }
 
     fun getDefaultBackupDir(context: Context): File {
