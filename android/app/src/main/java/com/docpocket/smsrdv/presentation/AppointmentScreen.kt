@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.*
@@ -152,11 +153,6 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { viewModel.forceSendRemindersForNext48h() }) {
-                Text("Forcer SMS", modifier = Modifier.padding(horizontal = 16.dp))
-            }
         }
     ) { padding ->
         LazyColumn(
@@ -237,7 +233,8 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
                             onValueChange = { telephone = it },
                             label = { Text("Téléphone (+33...)") },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                         )
                         OutlinedTextField(
                             value = email,
@@ -450,6 +447,7 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
             items(appointments) { rdv ->
                 AppointmentItem(
                     appointment = rdv,
+                    onSendSmsClick = { viewModel.sendSmsNow(rdv) },
                     onEditClick = {
                         editingId = rdv.id
                         nomPatient = rdv.nomPatient
@@ -465,22 +463,44 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
             }
             
             item {
-                Spacer(modifier = Modifier.height(64.dp)) // padding for the FAB
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
 }
 
 @Composable
-fun AppointmentItem(appointment: AppointmentEntity, onEditClick: () -> Unit, onDeleteClick: () -> Unit) {
+fun AppointmentItem(
+    appointment: AppointmentEntity,
+    onSendSmsClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(
+                onClick = onSendSmsClick,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                ),
+                modifier = Modifier.size(42.dp)
+            ) {
+                Icon(
+                    Icons.Default.Send,
+                    contentDescription = "Envoyer SMS maintenant",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = appointment.nomPatient, fontWeight = FontWeight.Bold)
                 Text(text = "${appointment.dateRdv} à ${appointment.heureRdv} | ${appointment.telephone}", style = MaterialTheme.typography.bodyMedium)

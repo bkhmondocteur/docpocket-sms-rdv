@@ -4,6 +4,7 @@ import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -253,34 +254,34 @@ fun SettingsScreen(
 
             Divider(modifier = Modifier.padding(vertical = 4.dp))
 
-            // --- 4. RÉVEIL AUTOMATIQUE CLOUD 24/7 (ÉPURÉ SANS BOUTON TEST/TOKEN) ---
-            Text("Réveil Automatique Cloud 24/7", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            // --- 4. RÉVEIL AUTOMATIQUE CLOUD 24/7 (SYMBOLE STATUT ÉPURÉ) ---
+            val fcmToken = prefs.getString("fcm_token", "") ?: ""
+            val isCloudActive = fcmToken.isNotBlank()
 
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Text(
+                    "Réveil Automatique Cloud 24/7",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isCloudActive) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                    border = BorderStroke(1.dp, if (isCloudActive) Color(0xFF81C784) else Color(0xFFE57373))
                 ) {
-                    Text("✅", fontSize = 24.sp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            "Service Cloud FCM Prêt & Connecté",
+                            text = if (isCloudActive) "🟢 Connecté & Actif" else "🔴 Inactif",
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            "Votre téléphone est réveillé automatiquement en veille profonde (écran éteint) pour expédier le SMS à la seconde exacte.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                            color = if (isCloudActive) Color(0xFF2E7D32) else Color(0xFFC62828)
                         )
                     }
                 }

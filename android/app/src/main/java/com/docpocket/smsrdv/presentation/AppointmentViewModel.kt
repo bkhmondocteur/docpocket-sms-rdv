@@ -339,6 +339,26 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    fun sendSmsNow(appointment: AppointmentEntity) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    android.widget.Toast.makeText(getApplication(), "Envoi immédiat du SMS à ${appointment.nomPatient}...", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                val toSend = appointment.copy(smsEnvoye = false)
+                smsSender.sendReminders(listOf(toSend)) { id ->
+                    viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        appointmentDao.markSmsAsSent(id)
+                    }
+                }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    android.widget.Toast.makeText(getApplication(), "Erreur envoi SMS: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     fun forceSync() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
