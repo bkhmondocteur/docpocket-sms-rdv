@@ -103,6 +103,7 @@ header {
   background-color: var(--border);
   color: var(--text-muted);
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.2s ease;
 }
 
