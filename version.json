@@ -1,8 +1,8 @@
 {
-  "versionCode": 6,
-  "versionName": "2.2.2",
+  "versionCode": 7,
+  "versionName": "2.2.3",
   "releaseDate": "2026-11-26",
-  "changelog": "- 🛑 Correction critique anti-doublon & anti-réémission : interdiction stricte d'envoyer des SMS pour des rendez-vous déjà passés dans le temps\n- 🔒 Filtrage intelligent multi-critères (téléphone, date, heure, clé Cloud) à la réception FCM\n- ⏰ Protection des alarmes matérielles : aucune alarme ne peut être programmée pour une date antérieure\n- ☁️ Synchronisation Cloud Firestore avec clés déterministes uniques et nettoyage des rendez-vous expirés",
-  "downloadUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/download/v2.2.2/DocPocket-SMS-RDV.apk",
-  "releaseUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/tag/v2.2.2"
+  "changelog": "- ✨ Refonte esthétique complète (Interface médicale moderne, cartes épurées, barre de statut harmonisée)\n- 🔍 Ajout d'une barre de recherche instantanée de patients (par nom, téléphone ou date) + filtres rapides\n- 📊 Tableau de bord interactif en un coup d'œil (Aujourd'hui, En attente, Envoyés, Total)\n- 📅 Sélection rapide de dates (+48h, Demain, Aujourd'hui) et formulaire rétractable",
+  "downloadUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/download/v2.2.3/DocPocket-SMS-RDV.apk",
+  "releaseUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/tag/v2.2.3"
 }

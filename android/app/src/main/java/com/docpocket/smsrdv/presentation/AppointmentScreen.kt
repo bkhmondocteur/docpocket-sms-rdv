@@ -8,42 +8,99 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.docpocket.smsrdv.R
 import com.docpocket.smsrdv.data.local.AppointmentEntity
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
+
+private enum class AppointmentFilter(val label: String) {
+    ALL("Tous"),
+    TODAY("Aujourd'hui"),
+    PENDING("En attente"),
+    SENT("Envoyés")
+}
+
+private fun isAppointmentExpired(dateStr: String, timeStr: String): Boolean {
+    return try {
+        val cleanDate = dateStr.trim()
+        val cleanTime = timeStr.trim().ifEmpty { "09:00" }
+        val formats = listOf(
+            SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()),
+            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()),
+            SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.getDefault())
+        )
+        for (f in formats) {
+            try {
+                val parsed = f.parse("$cleanDate $cleanTime")
+                if (parsed != null) {
+                    return parsed.time < (System.currentTimeMillis() - 2 * 60 * 60 * 1000L)
+                }
+            } catch (_: Exception) {}
+        }
+        false
+    } catch (_: Exception) {
+        false
+    }
+}
+
+private fun getPatientInitials(name: String): String {
+    val parts = name.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+    return when {
+        parts.isEmpty() -> "?"
+        parts.size == 1 -> parts[0].take(2).uppercase()
+        else -> "${parts.first().first()}${parts.last().first()}".uppercase()
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateToSettings: () -> Unit) {
     val appointments by viewModel.appointments.collectAsState()
-    val globalTemplate by viewModel.globalSmsTemplate.collectAsState()
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("docpocket_prefs", Context.MODE_PRIVATE) }
 
+    val doctorName = remember { prefs.getString("doctor_name", "") ?: "" }
+    val configuredHours = remember { prefs.getInt("reminder_hours", 48) }
+    val isCloudActive = remember { !(prefs.getString("fcm_token", "") ?: "").isBlank() }
+
+    // État du formulaire
+    var isFormExpanded by remember { mutableStateOf(false) }
     var editingId by remember { mutableStateOf<Int?>(null) }
     var nomPatient by remember { mutableStateOf("") }
     var telephone by remember { mutableStateOf("") }
@@ -52,144 +109,250 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
     var email by remember { mutableStateOf("") }
     var language by remember { mutableStateOf("fr") }
     var texteSms by remember { mutableStateOf("") }
-    
-    var showSettings by remember { mutableStateOf(false) }
 
-    // Auto-update SMS text if it's new
+    // État recherche et filtres
+    var searchQuery by remember { mutableStateOf("") }
+    var activeFilter by remember { mutableStateOf(AppointmentFilter.ALL) }
+
+    // Dialogues
+    var showAboutDialog by remember { mutableStateOf(false) }
+    var pendingDeleteAppt by remember { mutableStateOf<AppointmentEntity?>(null) }
+
     LaunchedEffect(nomPatient, dateRdv, heureRdv, language, editingId) {
         if (editingId == null) {
-            texteSms = viewModel.generateSmsText(nomPatient.ifBlank { "{Nom du Patient}" }, dateRdv.ifBlank { "{Date}" }, heureRdv.ifBlank { "{Heure}" }, language)
+            texteSms = viewModel.generateSmsText(
+                nomPatient.ifBlank { "{Nom du Patient}" },
+                dateRdv.ifBlank { "{Date}" },
+                heureRdv.ifBlank { "{Heure}" },
+                language
+            )
         }
     }
 
-    if (showSettings) {
-        AlertDialog(
-            onDismissRequest = { showSettings = false },
-            title = { Text("Paramètres du SMS Global") },
-            text = {
-                var tempTemplate by remember { mutableStateOf(globalTemplate) }
-                Column {
-                    Text("Utilisez les balises [Nom], [Date], [Heure] pour personnaliser.")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = tempTemplate,
-                        onValueChange = { tempTemplate = it },
-                        modifier = Modifier.fillMaxWidth().height(120.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    // Save is not implemented in dialog directly, we need a local state, but let's do it simple
-                    // Wait, we need to pass tempTemplate back. See below:
-                }) { }
-            }
-        )
+    val todayFormatted = remember {
+        SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Calendar.getInstance().time)
     }
 
-    // Settings Dialog implementation
-    var showSettingsDialog by remember { mutableStateOf(false) }
-    if (showSettingsDialog) {
-        var tempTemplate by remember { mutableStateOf(globalTemplate) }
-        AlertDialog(
-            onDismissRequest = { showSettingsDialog = false },
-            title = { Text("Texte SMS par défaut") },
-            text = {
-                Column {
-                    Text("Ce modèle sera utilisé pour pré-remplir les nouveaux rendez-vous.\nBalises : [Nom], [Date], [Heure]", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = tempTemplate,
-                        onValueChange = { tempTemplate = it },
-                        modifier = Modifier.fillMaxWidth().height(150.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.saveGlobalSmsTemplate(tempTemplate)
-                    showSettingsDialog = false
-                    if (editingId == null) {
-                         texteSms = viewModel.generateSmsText(nomPatient.ifBlank { "[Nom]" }, dateRdv.ifBlank { "[Date]" }, heureRdv.ifBlank { "[Heure]" })
-                    }
-                }) { Text("Enregistrer") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSettingsDialog = false }) { Text("Annuler") }
-            }
-        )
+    // Statistiques rapides
+    val todayCount = remember(appointments, todayFormatted) {
+        appointments.count { it.dateRdv.trim() == todayFormatted }
+    }
+    val sentCount = remember(appointments) {
+        appointments.count { it.smsEnvoye }
+    }
+    val pendingCount = remember(appointments) {
+        appointments.count { !it.smsEnvoye && !isAppointmentExpired(it.dateRdv, it.heureRdv) }
     }
 
-    var showAboutDialog by remember { mutableStateOf(false) }
+    // Liste filtrée par recherche + filtre actif
+    val filteredAppointments = remember(appointments, searchQuery, activeFilter, todayFormatted) {
+        val q = searchQuery.trim()
+        appointments.filter { rdv ->
+            val matchesFilter = when (activeFilter) {
+                AppointmentFilter.ALL -> true
+                AppointmentFilter.TODAY -> rdv.dateRdv.trim() == todayFormatted
+                AppointmentFilter.PENDING -> !rdv.smsEnvoye && !isAppointmentExpired(rdv.dateRdv, rdv.heureRdv)
+                AppointmentFilter.SENT -> rdv.smsEnvoye
+            }
+            val matchesQuery = if (q.isEmpty()) true else {
+                rdv.nomPatient.contains(q, ignoreCase = true) ||
+                    rdv.telephone.contains(q, ignoreCase = true) ||
+                    rdv.dateRdv.contains(q, ignoreCase = true) ||
+                    (rdv.email?.contains(q, ignoreCase = true) == true)
+            }
+            matchesFilter && matchesQuery
+        }
+    }
+
+    fun resetForm() {
+        editingId = null
+        nomPatient = ""
+        telephone = ""
+        email = ""
+        dateRdv = ""
+        heureRdv = ""
+        texteSms = viewModel.generateSmsText("{Nom du Patient}", "{Date}", "{Heure}", language)
+    }
+
     if (showAboutDialog) {
         AboutDialog(onDismiss = { showAboutDialog = false })
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        androidx.compose.foundation.Image(
-                            painter = androidx.compose.ui.res.painterResource(id = com.docpocket.smsrdv.R.drawable.app_logo),
-                            contentDescription = "Logo",
-                            modifier = Modifier.size(36.dp).padding(end = 8.dp)
-                        )
-                        Text("DocPocket SMS RDV")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showAboutDialog = true }) {
-                        Icon(Icons.Default.Info, contentDescription = "À propos")
-                    }
-                    IconButton(onClick = { viewModel.forceSync() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Forcer Synchro")
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Paramètres")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    pendingDeleteAppt?.let { rdvToDelete ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteAppt = null },
+            icon = {
+                Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+            },
+            title = {
+                Text("Supprimer ce rendez-vous ?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "Voulez-vous vraiment supprimer le rendez-vous de ${rdvToDelete.nomPatient} prévu le ${rdvToDelete.dateRdv} à ${rdvToDelete.heureRdv} ?",
+                    style = MaterialTheme.typography.bodyMedium
                 )
-            )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteAppointment(rdvToDelete.id)
+                        pendingDeleteAppt = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Supprimer", maxLines = 1, softWrap = false)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteAppt = null }) {
+                    Text("Annuler", maxLines = 1, softWrap = false)
+                }
+            }
+        )
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 2.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.app_logo),
+                                contentDescription = "Logo",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "DocPocket SMS RDV",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 17.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .background(
+                                            if (isCloudActive) Color(0xFF10B981) else Color(0xFFEF4444),
+                                            CircleShape
+                                        )
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = if (doctorName.isNotBlank()) "Dr $doctorName" else "Cabinet Médical",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        FilledTonalIconButton(
+                            onClick = { showAboutDialog = true },
+                            modifier = Modifier.size(36.dp),
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Icon(Icons.Default.Info, contentDescription = "À propos", modifier = Modifier.size(18.dp))
+                        }
+                        FilledTonalIconButton(
+                            onClick = { viewModel.forceSync() },
+                            modifier = Modifier.size(36.dp),
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Synchroniser", modifier = Modifier.size(18.dp))
+                        }
+                        FilledTonalIconButton(
+                            onClick = onNavigateToSettings,
+                            modifier = Modifier.size(36.dp),
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = "Paramètres",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp)
         ) {
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
+            // 1. Alerte Permission Alarmes Exactes (si manquante)
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            val canExactAlarm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                alarmManager?.canScheduleExactAlarms() ?: true
+            } else true
 
-                // Vérification dynamique de l'autorisation 'Alarmes et rappels'
-                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-                val canExactAlarm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    alarmManager?.canScheduleExactAlarms() ?: true
-                } else true
-
-                if (!canExactAlarm) {
+            if (!canExactAlarm) {
+                item {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
+                        border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Action requise : Alarmes exactes",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF991B1B)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                "⚠️ Action Requise : Alarmes et Rappels",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onErrorContainer
+                                "Autorisez 'Alarmes et rappels' pour envoyer les SMS automatiquement même écran verrouillé.",
+                                fontSize = 12.sp,
+                                color = Color(0xFF7F1D1D)
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "Pour déclencher l'envoi de SMS en arrière-plan lorsque le téléphone est verrouillé, vous devez autoriser DocPocket SMS RDV dans 'Alarmes et rappels'.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
                             Button(
                                 onClick = {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -198,274 +361,662 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
                                         }
                                         try {
                                             context.startActivity(intent)
-                                        } catch (e: Exception) {
+                                        } catch (_: Exception) {
                                             context.startActivity(Intent(Settings.ACTION_SETTINGS))
                                         }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                             ) {
-                                Text("Activer 'Alarmes et rappels'")
+                                Text("Activer l'autorisation", fontSize = 12.sp, maxLines = 1, softWrap = false)
                             }
                         }
                     }
                 }
+            }
 
-                // Formulaire
-                Card(
+            // 2. Tableau de bord KPI (4 indicateurs interactifs)
+            item {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(if (editingId == null) "Ajouter un rendez-vous" else "Modifier le rendez-vous", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        
-                        OutlinedTextField(
-                            value = nomPatient,
-                            onValueChange = { nomPatient = it },
-                            label = { Text("Nom du patient") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = telephone,
-                            onValueChange = { telephone = it },
-                            label = { Text("Téléphone (+33...)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                        )
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
-                            label = { Text("Email du patient (Optionnel)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
+                    DashboardStatPill(
+                        label = "Aujourd'hui",
+                        count = todayCount,
+                        accentColor = MaterialTheme.colorScheme.primary,
+                        isSelected = activeFilter == AppointmentFilter.TODAY,
+                        onClick = {
+                            activeFilter = if (activeFilter == AppointmentFilter.TODAY) AppointmentFilter.ALL else AppointmentFilter.TODAY
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DashboardStatPill(
+                        label = "En attente",
+                        count = pendingCount,
+                        accentColor = Color(0xFFD97706),
+                        isSelected = activeFilter == AppointmentFilter.PENDING,
+                        onClick = {
+                            activeFilter = if (activeFilter == AppointmentFilter.PENDING) AppointmentFilter.ALL else AppointmentFilter.PENDING
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DashboardStatPill(
+                        label = "Envoyés",
+                        count = sentCount,
+                        accentColor = Color(0xFF059669),
+                        isSelected = activeFilter == AppointmentFilter.SENT,
+                        onClick = {
+                            activeFilter = if (activeFilter == AppointmentFilter.SENT) AppointmentFilter.ALL else AppointmentFilter.SENT
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DashboardStatPill(
+                        label = "Total",
+                        count = appointments.size,
+                        accentColor = Color(0xFF6366F1),
+                        isSelected = activeFilter == AppointmentFilter.ALL,
+                        onClick = { activeFilter = AppointmentFilter.ALL },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // 3. Carte Formulaire Moderne & Rétractable (Nouveau RDV / Modification)
+            item {
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(
+                        width = if (isFormExpanded) 1.5.dp else 1.dp,
+                        color = if (isFormExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (isFormExpanded) 3.dp else 1.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // En-tête cliquable pour ouvrir/fermer
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = dateRdv,
-                                onValueChange = { input ->
-                                    // Format manuel strict jj/mm/aaaa avec insertion automatique des /
-                                    val digits = input.filter { it.isDigit() }.take(8)
-                                    val formatted = buildString {
-                                        for (i in digits.indices) {
-                                            append(digits[i])
-                                            if ((i == 1 || i == 3) && i != digits.lastIndex) {
-                                                append('/')
-                                            }
-                                        }
-                                    }
-                                    dateRdv = formatted
-                                },
-                                label = { Text("Date (jj/mm/aaaa)") },
-                                placeholder = { Text("JJ/MM/AAAA") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                trailingIcon = {
-                                    IconButton(onClick = {
-                                        val c = Calendar.getInstance()
-                                        DatePickerDialog(context, { _, y, m, d ->
-                                            dateRdv = String.format("%02d/%02d/%04d", d, m + 1, y)
-                                        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
-                                    }) {
-                                        Icon(Icons.Default.DateRange, contentDescription = "Choisir date")
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = heureRdv,
-                                onValueChange = { input ->
-                                    val digits = input.filter { it.isDigit() }.take(4)
-                                    val formatted = if (digits.length <= 2) digits else "${digits.substring(0, 2)}:${digits.substring(2)}"
-                                    heureRdv = formatted
-                                },
-                                label = { Text("Heure (hh:mm)") },
-                                placeholder = { Text("HH:MM") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                trailingIcon = {
-                                    IconButton(onClick = {
-                                        val c = Calendar.getInstance()
-                                        TimePickerDialog(context, { _, h, m ->
-                                            heureRdv = String.format("%02d:%02d", h, m)
-                                        }, c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), true).show()
-                                    }) {
-                                        Icon(Icons.Default.Notifications, contentDescription = "Choisir heure")
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        // Language Selector
-                        var expanded by remember { mutableStateOf(false) }
-                        ExposedDropdownMenuBox(
-                            expanded = expanded,
-                            onExpandedChange = { expanded = !expanded }
-                        ) {
-                            OutlinedTextField(
-                                value = when (language) { "fr" -> "Français"; "ar" -> "Arabe"; "en" -> "Anglais"; else -> "Français" },
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Langue du message") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = expanded,
-                                onDismissRequest = { expanded = false }
-                            ) {
-                                DropdownMenuItem(text = { Text("Français") }, onClick = { 
-                                    language = "fr"
-                                    texteSms = viewModel.generateSmsText(nomPatient.ifBlank { "{Nom du Patient}" }, dateRdv.ifBlank { "{Date}" }, heureRdv.ifBlank { "{Heure}" }, "fr")
-                                    expanded = false 
-                                })
-                                DropdownMenuItem(text = { Text("Arabe") }, onClick = { 
-                                    language = "ar"
-                                    texteSms = viewModel.generateSmsText(nomPatient.ifBlank { "{Nom du Patient}" }, dateRdv.ifBlank { "{Date}" }, heureRdv.ifBlank { "{Heure}" }, "ar")
-                                    expanded = false 
-                                })
-                                DropdownMenuItem(text = { Text("Anglais") }, onClick = { 
-                                    language = "en"
-                                    texteSms = viewModel.generateSmsText(nomPatient.ifBlank { "{Nom du Patient}" }, dateRdv.ifBlank { "{Date}" }, heureRdv.ifBlank { "{Heure}" }, "en")
-                                    expanded = false 
-                                })
-                            }
-                        }
-                        
-                        OutlinedTextField(
-                            value = texteSms,
-                            onValueChange = { texteSms = it },
-                            label = { Text("Texte du message personnalisé") },
-                            modifier = Modifier.fillMaxWidth().height(100.dp),
-                            maxLines = 4
-                        )
-
-                        val prefs = context.getSharedPreferences("docpocket_prefs", Context.MODE_PRIVATE)
-                        val configuredHours = prefs.getInt("reminder_hours", 48)
-
-                        Card(
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
-                            ),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isFormExpanded = !isFormExpanded }
+                                .background(
+                                    if (isFormExpanded)
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                                                MaterialTheme.colorScheme.surface
+                                            )
+                                        )
+                                    else
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.06f)
+                                            )
+                                        )
+                                )
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f).padding(end = 8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (editingId != null) Icons.Default.Edit else Icons.Default.Add,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = if (editingId == null) "Nouveau Rendez-Vous" else "Modifier le Rendez-Vous",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = if (isFormExpanded) "Remplissez les coordonnées ci-dessous" else "Appuyez ici pour planifier un rappel SMS",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer
                             ) {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
-                                ) {
-                                    Text("⏰", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(end = 8.dp))
-                                    Column {
-                                        Text(
-                                            "Délai d'envoi du rappel",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Text(
-                                            "${configuredHours}h avant le rendez-vous",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                                OutlinedButton(
-                                    onClick = onNavigateToSettings,
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(34.dp)
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        "Modifier",
-                                        style = MaterialTheme.typography.labelMedium,
+                                        text = if (isFormExpanded) "Réduire" else "Ouvrir",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
                                         maxLines = 1,
                                         softWrap = false
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Icon(
+                                        imageVector = if (isFormExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
+                        // Contenu animé du formulaire
+                        AnimatedVisibility(
+                            visible = isFormExpanded,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
                         ) {
-                            if (editingId != null) {
-                                TextButton(onClick = {
-                                    editingId = null
-                                    nomPatient = ""
-                                    telephone = ""
-                                    email = ""
-                                    dateRdv = ""
-                                    heureRdv = ""
-                                    texteSms = viewModel.generateSmsText("{Nom du Patient}", "{Date}", "{Heure}", language)
-                                }) {
-                                    Text("Annuler")
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = nomPatient,
+                                    onValueChange = { nomPatient = it },
+                                    label = { Text("Nom du patient", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    placeholder = { Text("Ex: Ahmed Ben Ali") },
+                                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+
+                                OutlinedTextField(
+                                    value = telephone,
+                                    onValueChange = { telephone = it },
+                                    label = { Text("Téléphone portable", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    placeholder = { Text("Ex: 53573117") },
+                                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+
+                                OutlinedTextField(
+                                    value = email,
+                                    onValueChange = { email = it },
+                                    label = { Text("Email (optionnel)", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    placeholder = { Text("patient@email.com") },
+                                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+
+                                // Date & Heure côte à côte avec libellés courts (jamais de saut de ligne !)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = dateRdv,
+                                        onValueChange = { input ->
+                                            val digits = input.filter { it.isDigit() }.take(8)
+                                            val formatted = buildString {
+                                                for (i in digits.indices) {
+                                                    append(digits[i])
+                                                    if ((i == 1 || i == 3) && i != digits.lastIndex) append('/')
+                                                }
+                                            }
+                                            dateRdv = formatted
+                                        },
+                                        label = { Text("Date", maxLines = 1, softWrap = false) },
+                                        placeholder = { Text("jj/mm/aaaa") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        shape = RoundedCornerShape(12.dp),
+                                        singleLine = true,
+                                        trailingIcon = {
+                                            IconButton(onClick = {
+                                                val c = Calendar.getInstance()
+                                                DatePickerDialog(context, { _, y, m, d ->
+                                                    dateRdv = String.format("%02d/%02d/%04d", d, m + 1, y)
+                                                }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
+                                            }) {
+                                                Icon(Icons.Default.DateRange, contentDescription = "Choisir date", tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1.25f)
+                                    )
+                                    OutlinedTextField(
+                                        value = heureRdv,
+                                        onValueChange = { input ->
+                                            val digits = input.filter { it.isDigit() }.take(4)
+                                            heureRdv = if (digits.length <= 2) digits else "${digits.substring(0, 2)}:${digits.substring(2)}"
+                                        },
+                                        label = { Text("Heure", maxLines = 1, softWrap = false) },
+                                        placeholder = { Text("hh:mm") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        shape = RoundedCornerShape(12.dp),
+                                        singleLine = true,
+                                        trailingIcon = {
+                                            IconButton(onClick = {
+                                                val c = Calendar.getInstance()
+                                                TimePickerDialog(context, { _, h, m ->
+                                                    heureRdv = String.format("%02d:%02d", h, m)
+                                                }, c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), true).show()
+                                            }) {
+                                                Icon(Icons.Default.Notifications, contentDescription = "Choisir heure", tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
                                 }
-                            }
-                            Button(
-                                onClick = {
-                                    if (nomPatient.isNotBlank() && (telephone.isNotBlank() || email.isNotBlank()) && dateRdv.isNotBlank() && heureRdv.isNotBlank()) {
-                                        if (editingId == null) {
-                                            viewModel.addAppointment(nomPatient, telephone, email, dateRdv, heureRdv, texteSms, language)
-                                        } else {
-                                            viewModel.updateAppointment(editingId!!, nomPatient, telephone, email, dateRdv, heureRdv, texteSms, language)
-                                            editingId = null
+
+                                // Boutons de sélection rapide de date
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf("Aujourd'hui" to 0, "Demain" to 1, "+48h" to 2, "+7 jours" to 7).forEach { (chipLabel, daysToAdd) ->
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    val c = Calendar.getInstance()
+                                                    c.add(Calendar.DAY_OF_YEAR, daysToAdd)
+                                                    dateRdv = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(c.time)
+                                                }
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = chipLabel,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                            }
                                         }
-                                        nomPatient = ""
-                                        telephone = ""
-                                        email = ""
-                                        dateRdv = ""
-                                        heureRdv = ""
-                                        texteSms = viewModel.generateSmsText("{Nom du Patient}", "{Date}", "{Heure}", language)
                                     }
                                 }
-                            ) {
-                                Text(if (editingId == null) "Ajouter" else "Enregistrer")
+
+                                // Sélecteur de langue
+                                var expandedLang by remember { mutableStateOf(false) }
+                                ExposedDropdownMenuBox(
+                                    expanded = expandedLang,
+                                    onExpandedChange = { expandedLang = !expandedLang }
+                                ) {
+                                    OutlinedTextField(
+                                        value = when (language) {
+                                            "ar" -> "Arabe (العربية)"
+                                            "en" -> "Anglais (English)"
+                                            else -> "Français"
+                                        },
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("Langue du SMS") },
+                                        shape = RoundedCornerShape(12.dp),
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedLang) },
+                                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                                    )
+                                    ExposedDropdownMenu(
+                                        expanded = expandedLang,
+                                        onDismissRequest = { expandedLang = false }
+                                    ) {
+                                        DropdownMenuItem(text = { Text("Français") }, onClick = {
+                                            language = "fr"
+                                            texteSms = viewModel.generateSmsText(nomPatient.ifBlank { "{Nom du Patient}" }, dateRdv.ifBlank { "{Date}" }, heureRdv.ifBlank { "{Heure}" }, "fr")
+                                            expandedLang = false
+                                        })
+                                        DropdownMenuItem(text = { Text("Arabe (العربية)") }, onClick = {
+                                            language = "ar"
+                                            texteSms = viewModel.generateSmsText(nomPatient.ifBlank { "{Nom du Patient}" }, dateRdv.ifBlank { "{Date}" }, heureRdv.ifBlank { "{Heure}" }, "ar")
+                                            expandedLang = false
+                                        })
+                                        DropdownMenuItem(text = { Text("Anglais (English)") }, onClick = {
+                                            language = "en"
+                                            texteSms = viewModel.generateSmsText(nomPatient.ifBlank { "{Nom du Patient}" }, dateRdv.ifBlank { "{Date}" }, heureRdv.ifBlank { "{Heure}" }, "en")
+                                            expandedLang = false
+                                        })
+                                    }
+                                }
+
+                                // Message personnalisé + compteur
+                                OutlinedTextField(
+                                    value = texteSms,
+                                    onValueChange = { texteSms = it },
+                                    label = { Text("Aperçu du SMS (${texteSms.length} car.)") },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 88.dp, max = 120.dp),
+                                    maxLines = 4
+                                )
+
+                                // Bandeau Délai de rappel + Bouton Modifier protégé contre le wrapping
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                        ) {
+                                            Text("⏰", fontSize = 18.sp, modifier = Modifier.padding(end = 8.dp))
+                                            Column {
+                                                Text(
+                                                    "Délai d'envoi du rappel",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1
+                                                )
+                                                Text(
+                                                    "${configuredHours}h avant le rendez-vous",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                        OutlinedButton(
+                                            onClick = onNavigateToSettings,
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.height(34.dp)
+                                        ) {
+                                            Text(
+                                                "Modifier",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Boutons Valider / Annuler
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            resetForm()
+                                            isFormExpanded = false
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(0.4f).height(46.dp)
+                                    ) {
+                                        Text("Annuler", maxLines = 1, softWrap = false)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            if (nomPatient.isNotBlank() && (telephone.isNotBlank() || email.isNotBlank()) && dateRdv.isNotBlank() && heureRdv.isNotBlank()) {
+                                                if (editingId == null) {
+                                                    viewModel.addAppointment(nomPatient, telephone, email, dateRdv, heureRdv, texteSms, language)
+                                                } else {
+                                                    viewModel.updateAppointment(editingId!!, nomPatient, telephone, email, dateRdv, heureRdv, texteSms, language)
+                                                }
+                                                resetForm()
+                                                isFormExpanded = false
+                                            }
+                                        },
+                                        enabled = nomPatient.isNotBlank() && (telephone.isNotBlank() || email.isNotBlank()) && dateRdv.isNotBlank() && heureRdv.isNotBlank(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(0.6f).height(46.dp)
+                                    ) {
+                                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            if (editingId == null) "Enregistrer" else "Mettre à jour",
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
 
+            // 4. Zone de Recherche de Patient + Filtres
             item {
-                Text("Liste des rendez-vous", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = {
+                            Text(
+                                "Rechercher un patient (nom, téléphone, date)...",
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = "Rechercher", tint = MaterialTheme.colorScheme.primary)
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Effacer la recherche", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Onglets de filtre rapides
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(AppointmentFilter.values()) { filter ->
+                            val isSelected = activeFilter == filter
+                            val countForFilter = when (filter) {
+                                AppointmentFilter.ALL -> appointments.size
+                                AppointmentFilter.TODAY -> todayCount
+                                AppointmentFilter.PENDING -> pendingCount
+                                AppointmentFilter.SENT -> sentCount
+                            }
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { activeFilter = filter },
+                                label = {
+                                    Text(
+                                        "${filter.label} ($countForFilter)",
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                },
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Liste des rendez-vous (${filteredAppointments.size})",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        if (searchQuery.isNotEmpty() || activeFilter != AppointmentFilter.ALL) {
+                            Text(
+                                text = "Tout afficher",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clickable {
+                                    searchQuery = ""
+                                    activeFilter = AppointmentFilter.ALL
+                                }
+                            )
+                        }
+                    }
+                }
             }
 
-            items(appointments) { rdv ->
-                AppointmentItem(
-                    appointment = rdv,
-                    onSendSmsClick = { viewModel.sendSmsNow(rdv) },
-                    onEditClick = {
-                        editingId = rdv.id
-                        nomPatient = rdv.nomPatient
-                        telephone = rdv.telephone
-                        email = rdv.email ?: ""
-                        language = rdv.language
-                        dateRdv = rdv.dateRdv
-                        heureRdv = rdv.heureRdv
-                        texteSms = rdv.texteSms
-                    },
-                    onDeleteClick = { viewModel.deleteAppointment(rdv.id) }
-                )
+            // 5. État vide si aucun résultat
+            if (filteredAppointments.isEmpty()) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp, horizontal = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = if (searchQuery.isNotEmpty()) Icons.Default.Search else Icons.Default.DateRange,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = if (searchQuery.isNotEmpty())
+                                    "Aucun patient trouvé pour « $searchQuery »"
+                                else
+                                    "Aucun rendez-vous dans cette catégorie",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (searchQuery.isNotEmpty())
+                                    "Essayez avec un autre nom, numéro ou date."
+                                else
+                                    "Appuyez sur « Nouveau Rendez-Vous » ci-dessus pour commencer.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            } else {
+                // 6. Liste des cartes patients
+                items(filteredAppointments, key = { it.id }) { rdv ->
+                    AppointmentItem(
+                        appointment = rdv,
+                        onSendSmsClick = { viewModel.sendSmsNow(rdv) },
+                        onEditClick = {
+                            editingId = rdv.id
+                            nomPatient = rdv.nomPatient
+                            telephone = rdv.telephone
+                            email = rdv.email ?: ""
+                            language = rdv.language
+                            dateRdv = rdv.dateRdv
+                            heureRdv = rdv.heureRdv
+                            texteSms = rdv.texteSms
+                            isFormExpanded = true
+                        },
+                        onDeleteClick = { pendingDeleteAppt = rdv }
+                    )
+                }
             }
-            
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardStatPill(
+    label: String,
+    count: Int,
+    accentColor: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (isSelected) accentColor.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            width = if (isSelected) 1.5.dp else 1.dp,
+            color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant
+        ),
+        shadowElevation = if (isSelected) 0.dp else 1.dp,
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = count.toString(),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = accentColor,
+                maxLines = 1
+            )
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -477,59 +1028,183 @@ fun AppointmentItem(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    val isExpired = remember(appointment.dateRdv, appointment.heureRdv, appointment.smsEnvoye) {
+        !appointment.smsEnvoye && isAppointmentExpired(appointment.dateRdv, appointment.heureRdv)
+    }
+
+    val statusColor = when {
+        appointment.smsEnvoye -> Color(0xFF10B981)
+        isExpired -> Color(0xFF94A3B8)
+        else -> Color(0xFFF59E0B)
+    }
+
+    val statusBgColor = when {
+        appointment.smsEnvoye -> Color(0xFFECFDF5)
+        isExpired -> Color(0xFFF1F5F9)
+        else -> Color(0xFFFFFBEB)
+    }
+
+    val statusTextColor = when {
+        appointment.smsEnvoye -> Color(0xFF047857)
+        isExpired -> Color(0xFF475569)
+        else -> Color(0xFFB45309)
+    }
+
+    val statusLabel = when {
+        appointment.smsEnvoye -> "SMS Envoyé"
+        isExpired -> "Expiré (Passé)"
+        else -> "En attente"
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(
-                onClick = onSendSmsClick,
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                ),
-                modifier = Modifier.size(42.dp)
+            // Barre verticale de statut à gauche
+            Box(
+                modifier = Modifier
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .background(statusColor)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Default.Send,
-                    contentDescription = "Envoyer SMS maintenant",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+                // Avatar initiales patient
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = getPatientInitials(appointment.nomPatient),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
 
-            Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(11.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = appointment.nomPatient,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "${appointment.dateRdv} à ${appointment.heureRdv} | ${appointment.telephone}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("SMS : ", style = MaterialTheme.typography.bodySmall)
-                    if (appointment.smsEnvoye) {
-                        Icon(Icons.Default.CheckCircle, "Envoyé", tint = Color(0xFF4CAF50), modifier = Modifier.size(16.dp))
-                        Text(" Envoyé", color = Color(0xFF4CAF50), style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                    } else {
-                        Text(" En attente", color = Color(0xFFF44336), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                // Informations patient + Date/Tél + Badge statut
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = appointment.nomPatient,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Text(
+                        text = "📅 ${appointment.dateRdv} à ${appointment.heureRdv}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Text(
+                        text = "📞 ${appointment.telephone}",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = statusBgColor,
+                        border = BorderStroke(0.5.dp, statusColor.copy(alpha = 0.45f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(statusColor, CircleShape)
+                            )
+                            Text(
+                                text = statusLabel,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = statusTextColor,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
-            }
-            IconButton(onClick = onEditClick) {
-                Icon(Icons.Default.Edit, contentDescription = "Modifier", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onDeleteClick) {
-                Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error)
+
+                // Boutons d'action groupés proprement
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    FilledTonalIconButton(
+                        onClick = onSendSmsClick,
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Send,
+                            contentDescription = "Envoyer SMS maintenant",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onEditClick,
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Modifier",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDeleteClick,
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Supprimer",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
         }
     }
