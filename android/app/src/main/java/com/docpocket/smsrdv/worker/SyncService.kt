@@ -292,17 +292,16 @@ class SyncService : Service() {
             val currentTime = System.currentTimeMillis()
             val appointmentTime = appointmentDate.time
 
-            if (appointmentTime < (currentTime - 2 * 3600 * 1000L)) {
+            if (appointmentTime <= currentTime) {
+                // RDV déjà dans le passé : interdiction formelle de programmer une alarme
                 return
             }
 
             val timeReminder = appointmentTime - (reminderHours * 60 * 60 * 1000L)
             val targetAlarmTime = if (timeReminder > currentTime) {
                 timeReminder
-            } else if (appointmentTime > currentTime) {
-                appointmentTime
             } else {
-                currentTime + 3000L
+                appointmentTime
             }
 
             val showIntent = PendingIntent.getActivity(

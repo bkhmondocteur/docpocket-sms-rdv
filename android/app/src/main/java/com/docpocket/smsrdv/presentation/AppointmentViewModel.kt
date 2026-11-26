@@ -107,6 +107,13 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
             val existingAppointment = appointmentDao.getAppointmentById(id)
             val firebaseKey = existingAppointment?.firebaseKey
 
+            // Protection anti-doublon : on ne réinitialise le statut d'envoi QUE si la date ou l'heure a réellement changé vers le futur
+            val isDateOrTimeChanged = existingAppointment != null &&
+                    (existingAppointment.dateRdv != dateRdv || existingAppointment.heureRdv != heureRdv)
+            val parsedNewDate = parseAppointmentDateTime(dateRdv, heureRdv)
+            val isFuture = parsedNewDate != null && parsedNewDate.time > System.currentTimeMillis()
+            val newSmsStatus = if (isDateOrTimeChanged && isFuture) false else (existingAppointment?.smsEnvoye ?: false)
+
             val updatedAppointment = AppointmentEntity(
                 id = id,
                 nomPatient = nomPatient,
@@ -116,7 +123,7 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
                 dateRdv = dateRdv,
                 heureRdv = heureRdv,
                 texteSms = texteSms,
-                smsEnvoye = false, // Réinitialiser le statut
+                smsEnvoye = newSmsStatus,
                 firebaseKey = firebaseKey
             )
             
@@ -134,7 +141,9 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
             }
 
             appointmentDao.updateAppointment(updatedAppointment.copy(synced = synced))
-            scheduleExactReminders(id, dateRdv, heureRdv)
+            if (!newSmsStatus) {
+                scheduleExactReminders(id, dateRdv, heureRdv)
+            }
             com.docpocket.smsrdv.backup.BackupManager.performAutoBackup(getApplication())
         }
     }
@@ -232,25 +241,21 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
             val currentTime = System.currentTimeMillis()
             val appointmentTime = appointmentDate.time
 
-            if (appointmentTime < (currentTime - 2 * 3600 * 1000L)) {
-                // Rendez-vous expiré depuis plus de 2 heures
+            // Si le rendez-vous est déjà dans le passé, on ne programme jamais d'alarme !
+            if (appointmentTime <= currentTime) {
                 return
             }
 
             // Calcul de l'heure exacte de déclenchement du rappel
             val timeReminder = appointmentTime - (reminderHours * 60 * 60 * 1000L)
             
-            // Logique de ciblage infaillible :
-            // 1. Si le rappel à H-48 (ou délai configuré) est dans le futur : on programme à cette heure précise.
-            // 2. Si le rappel théorique est dépassé mais que le RDV est dans le futur (ex: test dans 2 min ou RDV pris pour demain) :
-            //    on programme le réveil matériel exactement à l'heure du RDV (ou dans les 2 minutes prévues pour le test).
-            // 3. Si le RDV est déjà dépassé : déclenchement immédiat de rattrapage (+3s).
+            // Logique de ciblage :
+            // 1. Si le rappel (ex: H-48) est dans le futur : on programme à cette heure précise.
+            // 2. Si le délai de rappel est déjà dépassé mais que le RDV est dans le futur : on programme à l'heure du RDV.
             val targetAlarmTime = if (timeReminder > currentTime) {
                 timeReminder
-            } else if (appointmentTime > currentTime) {
-                appointmentTime
             } else {
-                currentTime + 3000L
+                appointmentTime
             }
 
             val showIntent = android.app.PendingIntent.getActivity(
@@ -283,12 +288,16 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
                 }
             }
 
-            // Synchronisation Cloud Firebase pour réveil FCM distant autonome
+            // Synchronisation Cloud Firebase pour réveil FCM distant autonome (clé déterministe unique)
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     val savedAppt = appointmentDao.getAppointmentById(id)
                     if (savedAppt != null) {
-                        com.docpocket.smsrdv.firebase.FirebaseSyncManager.syncAppointmentToCloud(context, savedAppt, targetAlarmTime)
+                        val doctorId = com.docpocket.smsrdv.firebase.FirebaseSyncManager.getDoctorId(context)
+                        val deterministicKey = "appt_${doctorId}_${savedAppt.id}"
+                        appointmentDao.updateFirebaseKey(id, deterministicKey)
+                        val updatedAppt = savedAppt.copy(firebaseKey = deterministicKey)
+                        com.docpocket.smsrdv.firebase.FirebaseSyncManager.syncAppointmentToCloud(context, updatedAppt, targetAlarmTime)
                     }
                 } catch (e: Exception) {
                     android.util.Log.w("AppointmentViewModel", "Erreur sync Cloud: ${e.message}")

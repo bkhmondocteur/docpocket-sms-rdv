@@ -37,11 +37,13 @@ object FirebaseSyncManager {
      * Enregistre le Token FCM du smartphone dans Firestore sous la clé unique du médecin (devices/{doctorId}).
      * Cela isole hermétiquement chaque médecin : chaque praticien a son propre document de terminal.
      */
-    fun saveDeviceToken(context: Context, token: String) {
+    fun saveDeviceToken(context: Context, token: String, isLicensed: Boolean = false, licenseKey: String = "") {
         try {
             val prefs = context.getSharedPreferences("docpocket_prefs", Context.MODE_PRIVATE)
             val doctorName = prefs.getString("doctor_name", "Dr.") ?: "Dr."
             val doctorId = getDoctorId(context)
+            val actualLicensed = isLicensed || prefs.getBoolean("is_licensed", false)
+            val actualKey = if (licenseKey.isNotBlank()) licenseKey else (prefs.getString("license_key", "") ?: "")
 
             val deviceData = hashMapOf(
                 "doctorId" to doctorId,
@@ -49,6 +51,10 @@ object FirebaseSyncManager {
                 "fcmToken" to token,
                 "deviceModel" to "${Build.MANUFACTURER} ${Build.MODEL}",
                 "androidVersion" to Build.VERSION.RELEASE,
+                "isLicensed" to actualLicensed,
+                "licenseActive" to actualLicensed,
+                "licenseKey" to actualKey,
+                "licenseActivatedAt" to System.currentTimeMillis(),
                 "lastUpdated" to System.currentTimeMillis()
             )
 
@@ -98,7 +104,7 @@ object FirebaseSyncManager {
                 "source" to "android"
             )
 
-            val docKey = appointment.firebaseKey ?: "appt_${doctorId}_${appointment.id}_${System.currentTimeMillis()}"
+            val docKey = appointment.firebaseKey?.takeIf { it.isNotBlank() } ?: "appt_${doctorId}_${appointment.id}"
 
             val db = FirebaseFirestore.getInstance()
             db.collection(COLLECTION_APPOINTMENTS).document(docKey)

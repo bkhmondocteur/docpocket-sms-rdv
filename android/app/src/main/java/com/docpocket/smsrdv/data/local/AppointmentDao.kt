@@ -21,6 +21,15 @@ interface AppointmentDao {
     @Query("SELECT * FROM RendezVous WHERE firebaseKey = :key LIMIT 1")
     suspend fun getAppointmentByFirebaseKey(key: String): AppointmentEntity?
 
+    @Query("SELECT * FROM RendezVous WHERE telephone = :phone AND dateRdv = :date LIMIT 1")
+    suspend fun getAppointmentByPhoneAndDate(phone: String, date: String): AppointmentEntity?
+
+    @Query("SELECT * FROM RendezVous WHERE nomPatient = :name AND dateRdv = :date LIMIT 1")
+    suspend fun getAppointmentByNameAndDate(name: String, date: String): AppointmentEntity?
+
+    @Query("UPDATE RendezVous SET firebaseKey = :key WHERE id = :id")
+    suspend fun updateFirebaseKey(id: Int, key: String)
+
     @Query("SELECT * FROM RendezVous ORDER BY dateRdv ASC, heureRdv ASC")
     fun getAllAppointments(): Flow<List<AppointmentEntity>>
 

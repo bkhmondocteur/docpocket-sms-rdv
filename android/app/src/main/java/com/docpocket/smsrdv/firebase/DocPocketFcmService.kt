@@ -11,6 +11,9 @@ import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class DocPocketFcmService : FirebaseMessagingService() {
 
@@ -75,16 +78,40 @@ class DocPocketFcmService : FirebaseMessagingService() {
                     val db = AppDatabase.getDatabase(applicationContext)
                     val dao = db.appointmentDao()
 
-                    // 1. Recherche par ID local ou par clé Cloud
-                    var existing = if (apptId > 0) dao.getAppointmentById(apptId) else null
+                    val currentTime = System.currentTimeMillis()
+                    val apptDateTime = parseAppointmentDateTime(dateRdv, heureRdv)
+
+                    // 1. PROTECTION STRICTE ANTI-RETARD : Si le RDV est déjà dépassé dans le temps, rejet catégorique
+                    if (apptDateTime != null && apptDateTime.time < (currentTime - 2 * 3600 * 1000L)) {
+                        Log.w(TAG, "Push FCM rejeté : Le RDV de '$patientName' ($dateRdv à $heureRdv) est dépassé dans le passé. Aucun SMS ne sera renvoyé.")
+                        if (cloudKey.isNotBlank()) {
+                            FirebaseSyncManager.markSmsSentInCloud(cloudKey)
+                        }
+                        return@launch
+                    }
+
+                    // 2. Recherche anti-doublon multicritère (ID local, clé Cloud, ou Téléphone + Date)
+                    var existing: AppointmentEntity? = null
+                    if (apptId > 0) {
+                        existing = dao.getAppointmentById(apptId)
+                    }
                     if (existing == null && cloudKey.isNotBlank()) {
                         existing = dao.getAppointmentByFirebaseKey(cloudKey)
                     }
+                    if (existing == null && phone.isNotBlank() && dateRdv.isNotBlank()) {
+                        existing = dao.getAppointmentByPhoneAndDate(phone, dateRdv)
+                    }
+                    if (existing == null && patientName.isNotBlank() && dateRdv.isNotBlank()) {
+                        existing = dao.getAppointmentByNameAndDate(patientName, dateRdv)
+                    }
 
-                    // 2. Vérification anti-doublon stricte
+                    // 3. Vérification du statut déjà envoyé
                     if (existing != null) {
                         if (existing.smsEnvoye) {
-                            Log.i(TAG, "RDV #${existing.id} déjà marqué envoyé en base locale. Annulation.")
+                            Log.i(TAG, "RDV #${existing.id} ($patientName - $dateRdv) déjà marqué envoyé en base locale. Doublon annulé.")
+                            if (cloudKey.isNotBlank()) {
+                                FirebaseSyncManager.markSmsSentInCloud(cloudKey)
+                            }
                             return@launch
                         }
 
@@ -94,9 +121,16 @@ class DocPocketFcmService : FirebaseMessagingService() {
                             Log.i(TAG, "RDV #${existing.id} déjà verrouillé par un autre processus.")
                             return@launch
                         }
+                    } else if (apptDateTime != null && apptDateTime.time < currentTime) {
+                        // S'il n'existe pas en base locale et que l'heure du RDV est déjà dépassée, interdire la création
+                        Log.w(TAG, "RDV inconnu et déjà passé ($dateRdv $heureRdv). Ignoré sans création.")
+                        if (cloudKey.isNotBlank()) {
+                            FirebaseSyncManager.markSmsSentInCloud(cloudKey)
+                        }
+                        return@launch
                     }
 
-                    // 3. Préparer l'entité à expédier
+                    // 4. Préparer l'entité à expédier
                     val apptToSend = existing ?: run {
                         val newEntity = AppointmentEntity(
                             id = 0,
@@ -114,7 +148,7 @@ class DocPocketFcmService : FirebaseMessagingService() {
                         newEntity.copy(id = insertedId)
                     }
 
-                    // 4. Déclenchement de l'envoi physique par la carte SIM
+                    // 5. Déclenchement de l'envoi physique par la carte SIM
                     val smsSender = SmsSender(applicationContext)
                     smsSender.sendReminders(listOf(apptToSend.copy(smsEnvoye = false))) { sentId ->
                         dao.markSmsAsSent(sentId)
@@ -133,6 +167,25 @@ class DocPocketFcmService : FirebaseMessagingService() {
                 wakeLock.release()
             }
         }
+    }
+
+    private fun parseAppointmentDateTime(dateStr: String, timeStr: String): Date? {
+        val cleanDate = dateStr.trim()
+        val cleanTime = timeStr.trim().ifEmpty { "09:00" }
+        val formats = listOf(
+            SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()),
+            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()),
+            SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.getDefault()),
+            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()),
+            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        )
+        for (f in formats) {
+            try {
+                val d = f.parse("$cleanDate $cleanTime")
+                if (d != null) return d
+            } catch (_: Exception) {}
+        }
+        return null
     }
 
     companion object {

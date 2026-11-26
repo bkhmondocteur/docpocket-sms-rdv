@@ -9,3 +9,11 @@ api/service-account.json
 !version.json
 !vercel.json
 !manifest.json
+
+# Android
+.gradle/
+android/.gradle/
+**/build/
+local.properties
+*.apk.idsig
+
