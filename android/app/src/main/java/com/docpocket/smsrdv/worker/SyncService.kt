@@ -43,25 +43,20 @@ class SyncService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        try {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-            wakeLock = powerManager?.newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK,
-                "DocPocket:SyncServiceWakeLock"
-            )?.apply {
-                setReferenceCounted(false)
-                acquire()
-            }
-            Log.i(TAG, "WakeLock acquis avec succès pour maintenir le service actif écran éteint")
-        } catch (e: Exception) {
-            Log.e(TAG, "Erreur acquisition WakeLock: ${e.message}")
-        }
+        // Ne pas maintenir un WakeLock permanent en veille : cela provoque le gel/arrêt de l'app par Android/MIUI/XOS.
+        // Un WakeLock temporaire est pris uniquement au moment d'un envoi effectif.
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         try {
             val notification = createNotification()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
                     NOTIFICATION_ID,
                     notification,
@@ -83,30 +78,36 @@ class SyncService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        Log.w(TAG, "Application fermée du multitâche. Protection et redémarrage automatique du service...")
+        Log.w(TAG, "Application fermée du multitâche. Planification de relance sécurisée...")
         try {
-            val restartIntent = Intent(applicationContext, SyncService::class.java)
-            val pendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                PendingIntent.getForegroundService(
-                    applicationContext,
-                    999,
-                    restartIntent,
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+            val workRequest = androidx.work.OneTimeWorkRequestBuilder<ReminderWorker>()
+                .setInitialDelay(2, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            androidx.work.WorkManager.getInstance(applicationContext).enqueue(workRequest)
+
+            val restartIntent = Intent(applicationContext, BootReceiver::class.java).apply {
+                action = Intent.ACTION_BOOT_COMPLETED
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                applicationContext,
+                999,
+                restartIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            )
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    System.currentTimeMillis() + 2000L,
+                    pendingIntent
                 )
             } else {
-                PendingIntent.getService(
-                    applicationContext,
-                    999,
-                    restartIntent,
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+                alarmManager.set(
+                    AlarmManager.RTC_WAKEUP,
+                    System.currentTimeMillis() + 2000L,
+                    pendingIntent
                 )
             }
-            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmManager.set(
-                AlarmManager.RTC_WAKEUP,
-                System.currentTimeMillis() + 1000L,
-                pendingIntent
-            )
         } catch (e: Exception) {
             Log.e(TAG, "Erreur onTaskRemoved: ${e.message}")
         }
@@ -205,6 +206,9 @@ class SyncService : Service() {
                     val smsSender = SmsSender(applicationContext)
                     smsSender.sendReminders(listOf(appt)) { id ->
                         dao.markSmsAsSent(id)
+                        appt.firebaseKey?.let { key ->
+                            com.docpocket.smsrdv.firebase.FirebaseSyncManager.markSmsSentInCloud(key)
+                        }
                         Log.i(TAG, "SyncService: RDV #$id marqué comme envoyé en base locale !")
                     }
                 }

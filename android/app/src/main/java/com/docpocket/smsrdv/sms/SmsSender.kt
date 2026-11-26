@@ -118,39 +118,10 @@ class SmsSender(private val context: Context) {
                         .replace("{Nom Du Médecin}", doctorName, ignoreCase = true)
                 }
 
-                var emailSuccess = false
+                var smsDispatched = false
 
-                // 1. Envoi Email si présent (avec timeout pour ne jamais bloquer l'envoi SMS)
-                if (!appointment.email.isNullOrBlank()) {
-                    val emailSender = com.docpocket.smsrdv.email.EmailSender(context)
-                    try {
-                        withTimeoutOrNull(15000L) {
-                            emailSuccess = emailSender.sendEmail(
-                                toEmail = appointment.email,
-                                subject = "Rappel de Rendez-vous",
-                                body = message
-                            )
-                        } ?: run {
-                            Log.w(TAG, "Timeout lors de l'envoi email pour ${appointment.nomPatient}")
-                        }
-
-                        if (emailSuccess) {
-                            showToast("Email envoyé à ${appointment.nomPatient}")
-                            if (appointment.firebaseKey != null) {
-                                try {
-                                    val api = com.docpocket.smsrdv.network.RetrofitClient.getApi(context)
-                                    api?.updateAppointment(appointment.firebaseKey, appointment.copy(emailEnvoye = true))
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Erreur maj emailEnvoye API", e)
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Erreur envoi email: ${e.message}", e)
-                    }
-                }
-
-                // 2. Envoi SMS direct via SmsManager avec confirmation réseau
+                // 1. PRIORITÉ ABSOLUE : Envoi SMS direct via SmsManager avant tout appel réseau
+                // Crucial pour ne jamais dépasser le délai de 10s d'un BroadcastReceiver en veille.
                 if (appointment.telephone.isNotBlank()) {
                     val cleanPhone = appointment.telephone.replace(Regex("[^0-9+]"), "")
                     if (cleanPhone.length >= 6) {
@@ -178,6 +149,7 @@ class SmsSender(private val context: Context) {
                                 Log.i(TAG, "SMS Simple transmis à $cleanPhone pour ${appointment.nomPatient}")
                             }
 
+                            smsDispatched = true
                             onSmsSent(appointment.id)
                             showToast("SMS transmis à l'antenne pour ${appointment.nomPatient}")
                             notifySmsSent(appointment.nomPatient, cleanPhone)
@@ -192,7 +164,9 @@ class SmsSender(private val context: Context) {
                                 }
                             }
 
-                            delay(2500L) // Délai anti-congestion pour l'opérateur
+                            if (appointments.size > 1) {
+                                delay(1500L) // Délai anti-congestion uniquement si envoi groupé
+                            }
                         } catch (e: Exception) {
                             Log.e(TAG, "Exception critique lors de l'envoi SMS à $cleanPhone: ${e.message}", e)
                             showToast("Erreur SMS: ${e.localizedMessage}")
@@ -203,8 +177,40 @@ class SmsSender(private val context: Context) {
                     } else {
                         Log.w(TAG, "Numéro invalide: ${appointment.telephone}")
                     }
-                } else if (emailSuccess) {
-                    onSmsSent(appointment.id)
+                }
+
+                // 2. Envoi Email si présent (après l'envoi SMS pour ne jamais le retarder)
+                var emailSuccess = false
+                if (!appointment.email.isNullOrBlank()) {
+                    val emailSender = com.docpocket.smsrdv.email.EmailSender(context)
+                    try {
+                        withTimeoutOrNull(12000L) {
+                            emailSuccess = emailSender.sendEmail(
+                                toEmail = appointment.email,
+                                subject = "Rappel de Rendez-vous",
+                                body = message
+                            )
+                        } ?: run {
+                            Log.w(TAG, "Timeout lors de l'envoi email pour ${appointment.nomPatient}")
+                        }
+
+                        if (emailSuccess) {
+                            showToast("Email envoyé à ${appointment.nomPatient}")
+                            if (!smsDispatched) {
+                                onSmsSent(appointment.id)
+                            }
+                            if (appointment.firebaseKey != null) {
+                                try {
+                                    val api = com.docpocket.smsrdv.network.RetrofitClient.getApi(context)
+                                    api?.updateAppointment(appointment.firebaseKey, appointment.copy(emailEnvoye = true))
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Erreur maj emailEnvoye API", e)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Erreur envoi email: ${e.message}", e)
+                    }
                 }
             } finally {
                 SmsLock.release(appointment.id)

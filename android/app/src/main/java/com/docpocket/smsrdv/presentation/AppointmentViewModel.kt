@@ -184,6 +184,10 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
             )
             oldIntent2?.let { alarmManager.cancel(it) }
 
+            try {
+                androidx.work.WorkManager.getInstance(context).cancelUniqueWork("reminder_exact_$id")
+            } catch (_: Exception) {}
+
             com.docpocket.smsrdv.backup.BackupManager.performAutoBackup(getApplication())
         }
     }
@@ -286,6 +290,22 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
                         alarmManager.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, targetAlarmTime, pendingIntent48h)
                     }
                 }
+            }
+
+            // Secours système autonome WorkManager (JobScheduler) en plus de l'alarme exacte
+            try {
+                val delayMs = (targetAlarmTime - currentTime).coerceAtLeast(1000L)
+                val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.docpocket.smsrdv.worker.ReminderWorker>()
+                    .setInitialDelay(delayMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .setInputData(androidx.work.workDataOf("appointment_id" to id))
+                    .build()
+                androidx.work.WorkManager.getInstance(context).enqueueUniqueWork(
+                    "reminder_exact_$id",
+                    androidx.work.ExistingWorkPolicy.REPLACE,
+                    workRequest
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("AppointmentViewModel", "Erreur WorkManager ciblé: ${e.message}")
             }
 
             // Synchronisation Cloud Firebase pour réveil FCM distant autonome (clé déterministe unique)

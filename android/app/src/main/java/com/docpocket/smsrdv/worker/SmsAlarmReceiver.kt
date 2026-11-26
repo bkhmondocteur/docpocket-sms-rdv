@@ -51,6 +51,9 @@ class SmsAlarmReceiver : BroadcastReceiver() {
                         val smsSender = SmsSender(context.applicationContext)
                         smsSender.sendReminders(listOf(appointment)) { id ->
                             dao.markSmsAsSent(id)
+                            appointment.firebaseKey?.let { key ->
+                                com.docpocket.smsrdv.firebase.FirebaseSyncManager.markSmsSentInCloud(key)
+                            }
                             Log.i(TAG, "Rendez-vous #$id validé envoyé dans la base")
                         }
                     } else {

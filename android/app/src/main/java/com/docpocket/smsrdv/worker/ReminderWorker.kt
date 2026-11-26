@@ -37,6 +37,9 @@ class ReminderWorker(
                     if (appointment != null) {
                         smsSender.sendReminders(listOf(appointment)) { id ->
                             dao.markSmsAsSent(id)
+                            appointment.firebaseKey?.let { key ->
+                                com.docpocket.smsrdv.firebase.FirebaseSyncManager.markSmsSentInCloud(key)
+                            }
                         }
                         Log.i(TAG, "SMS spécifique envoyé pour RDV #$specificId")
                     }
@@ -66,6 +69,9 @@ class ReminderWorker(
                         if (claimed > 0) {
                             smsSender.sendReminders(listOf(appt)) { id ->
                                 dao.markSmsAsSent(id)
+                                appt.firebaseKey?.let { key ->
+                                    com.docpocket.smsrdv.firebase.FirebaseSyncManager.markSmsSentInCloud(key)
+                                }
                                 Log.i(TAG, "RDV #$id validé envoyé par ReminderWorker")
                             }
                         }

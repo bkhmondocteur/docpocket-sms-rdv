@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -126,10 +127,37 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
     val coroutineScope = rememberCoroutineScope()
 
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-    val canExactAlarm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        alarmManager?.canScheduleExactAlarms() ?: true
-    } else true
-    val formItemIndex = if (!canExactAlarm) 2 else 1
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+
+    var canExactAlarm by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) alarmManager?.canScheduleExactAlarms() ?: true else true
+        )
+    }
+    var isIgnoringBattery by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: true else true
+        )
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                canExactAlarm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    alarmManager?.canScheduleExactAlarms() ?: true
+                } else true
+                isIgnoringBattery = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    powerManager?.isIgnoringBatteryOptimizations(context.packageName) ?: true
+                } else true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val needsBackgroundPermissions = !canExactAlarm || !isIgnoringBattery
+    val formItemIndex = if (needsBackgroundPermissions) 2 else 1
 
     // Dialogues
     var showAboutDialog by remember { mutableStateOf(false) }
@@ -383,8 +411,8 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp)
         ) {
-            // 1. Alerte Permission Alarmes Exactes (si manquante)
-            if (!canExactAlarm) {
+            // 1. Alerte Permissions Arrière-Plan (Alarmes Exactes / Batterie)
+            if (needsBackgroundPermissions) {
                 item {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
@@ -392,27 +420,28 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    "Action requise : Alarmes exactes",
+                                    "Envoi SMS en veille bloqué par Android",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = Color(0xFF991B1B)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                "Autorisez 'Alarmes et rappels' pour envoyer les SMS automatiquement même écran verrouillé.",
+                                "Sans ces autorisations, le téléphone suspend l'application écran éteint et n'envoie le SMS qu'à l'ouverture :",
                                 fontSize = 12.sp,
                                 color = Color(0xFF7F1D1D)
                             )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Button(
-                                onClick = {
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            if (!canExactAlarm && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                Button(
+                                    onClick = {
                                         val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                                             data = Uri.parse("package:${context.packageName}")
                                         }
@@ -421,13 +450,35 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
                                         } catch (_: Exception) {
                                             context.startActivity(Intent(Settings.ACTION_SETTINGS))
                                         }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                            ) {
-                                Text("Activer l'autorisation", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("1. Autoriser Alarmes & Rappels", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                                }
+                            }
+                            if (!isIgnoringBattery && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                            data = Uri.parse("package:${context.packageName}")
+                                        }
+                                        try {
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {
+                                            val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                                data = Uri.parse("package:${context.packageName}")
+                                            }
+                                            context.startActivity(fallback)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Désactiver l'économie de batterie (Aucune restriction)", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                                }
                             }
                         }
                     }

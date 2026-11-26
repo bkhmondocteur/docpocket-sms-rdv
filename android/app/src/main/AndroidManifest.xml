@@ -65,8 +65,12 @@
         
         <service
             android:name=".worker.SyncService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Envoi automatique de rappels SMS médicaux programmés en arrière-plan" />
+        </service>
         
         <!-- Service de réveil système Firebase Cloud Messaging (FCM) -->
         <service

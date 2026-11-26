@@ -582,6 +582,73 @@ fun SettingsScreen(
                 )
             }
 
+            // --- 5B. FIABILITÉ ARRIÈRE-PLAN (BATTERIE & DÉMARRAGE AUTO) ---
+            val powerMgr = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+            val batteryUnrestricted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                powerMgr?.isIgnoringBatteryOptimizations(context.packageName) ?: true
+            } else true
+
+            SettingsSectionCard(
+                emoji = "🔋",
+                title = "Fiabilité en Veille (Écran éteint)"
+            ) {
+                Text(
+                    "Sur Xiaomi (HyperOS/MIUI), Infinix (XOS), Oppo ou Samsung, activez « Démarrage automatique » et « Batterie : Aucune restriction » pour envoyer les SMS sans ouvrir l'application.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!batteryUnrestricted && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                        Button(
+                            onClick = {
+                                val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = android.net.Uri.parse("package:${context.packageName}")
+                                }
+                                try {
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                        ) {
+                            Text("Batterie libre", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val autostartIntents = listOf(
+                                android.content.Intent().setComponent(android.content.ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
+                                android.content.Intent().setComponent(android.content.ComponentName("com.transsion.phonemaster", "com.cyin.himgr.autostart.AutoStartActivity")),
+                                android.content.Intent().setComponent(android.content.ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")),
+                                android.content.Intent().setComponent(android.content.ComponentName("com.oplus.safecenter", "com.oplus.safecenter.permission.startup.StartupAppListActivity")),
+                                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = android.net.Uri.parse("package:${context.packageName}")
+                                }
+                            )
+                            for (intent in autostartIntents) {
+                                try {
+                                    context.startActivity(intent)
+                                    return@OutlinedButton
+                                } catch (_: Exception) {}
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                    ) {
+                        Text("Démarrage auto / App Info", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                    }
+                }
+            }
+
             // --- 6. EMAIL & MODÈLES DE SMS ---
             SettingsSectionCard(
                 emoji = "✉️",
