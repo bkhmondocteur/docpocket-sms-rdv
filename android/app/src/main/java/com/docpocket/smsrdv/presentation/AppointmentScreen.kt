@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -118,6 +120,16 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
     // État recherche et filtres
     var searchQuery by remember { mutableStateOf("") }
     var activeFilter by remember { mutableStateOf(AppointmentFilter.ALL) }
+
+    // Scroll & Coroutine
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+    val canExactAlarm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        alarmManager?.canScheduleExactAlarms() ?: true
+    } else true
+    val formItemIndex = if (!canExactAlarm) 2 else 1
 
     // Dialogues
     var showAboutDialog by remember { mutableStateOf(false) }
@@ -363,6 +375,7 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
@@ -371,11 +384,6 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
             contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp)
         ) {
             // 1. Alerte Permission Alarmes Exactes (si manquante)
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-            val canExactAlarm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                alarmManager?.canScheduleExactAlarms() ?: true
-            } else true
-
             if (!canExactAlarm) {
                 item {
                     Card(
@@ -1016,6 +1024,9 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
                             heureRdv = rdv.heureRdv
                             texteSms = rdv.texteSms
                             isFormExpanded = true
+                            coroutineScope.launch {
+                                listState.animateScrollToItem(formItemIndex)
+                            }
                         },
                         onDeleteClick = { pendingDeleteAppt = rdv }
                     )
