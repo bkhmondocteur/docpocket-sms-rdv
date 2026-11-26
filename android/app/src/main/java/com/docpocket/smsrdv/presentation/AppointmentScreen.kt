@@ -79,6 +79,11 @@ private fun isAppointmentExpired(dateStr: String, timeStr: String): Boolean {
     }
 }
 
+private fun formatDoctorDisplayName(rawName: String): String {
+    val clean = rawName.trim().replace(Regex("^(?i)(docteur|dr\\.?)\\s+"), "").trim()
+    return if (clean.isNotEmpty()) "Dr $clean" else "Cabinet Médical"
+}
+
 private fun getPatientInitials(name: String): String {
     val parts = name.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
     return when {
@@ -95,9 +100,9 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("docpocket_prefs", Context.MODE_PRIVATE) }
 
-    val doctorName = remember { prefs.getString("doctor_name", "") ?: "" }
-    val configuredHours = remember { prefs.getInt("reminder_hours", 48) }
-    val isCloudActive = remember { !(prefs.getString("fcm_token", "") ?: "").isBlank() }
+    val doctorName = prefs.getString("doctor_name", "") ?: ""
+    val configuredHours = prefs.getInt("reminder_hours", 48)
+    val isCloudActive = !(prefs.getString("fcm_token", "") ?: "").isBlank()
 
     // État du formulaire
     var isFormExpanded by remember { mutableStateOf(false) }
@@ -219,41 +224,121 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 2.dp
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f).padding(end = 6.dp)
                         ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.app_logo),
-                                contentDescription = "Logo",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.app_logo),
+                                    contentDescription = "Logo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = "DocPocket SMS RDV",
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 17.sp,
+                                fontSize = 15.sp,
+                                letterSpacing = (-0.3).sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            FilledTonalIconButton(
+                                onClick = { showAboutDialog = true },
+                                modifier = Modifier.size(32.dp),
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Icon(Icons.Default.Info, contentDescription = "À propos", modifier = Modifier.size(16.dp))
+                            }
+                            FilledTonalIconButton(
+                                onClick = { viewModel.forceSync() },
+                                modifier = Modifier.size(32.dp),
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Synchroniser", modifier = Modifier.size(16.dp))
+                            }
+                            FilledTonalIconButton(
+                                onClick = onNavigateToSettings,
+                                modifier = Modifier.size(32.dp),
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                )
+                            ) {
+                                Icon(
+                                    Icons.Default.Settings,
+                                    contentDescription = "Paramètres",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Bandeau identité du médecin & statut Cloud sur toute la largeur
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f).padding(end = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = formatDoctorDisplayName(doctorName),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
                                 Box(
                                     modifier = Modifier
                                         .size(7.dp)
@@ -262,51 +347,15 @@ fun AppointmentScreen(viewModel: AppointmentViewModel = viewModel(), onNavigateT
                                             CircleShape
                                         )
                                 )
-                                Spacer(modifier = Modifier.width(5.dp))
                                 Text(
-                                    text = if (doctorName.isNotBlank()) "Dr $doctorName" else "Cabinet Médical",
+                                    text = if (isCloudActive) "Cloud 24/7" else "Hors ligne",
                                     fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isCloudActive) Color(0xFF047857) else Color(0xFFB91C1C),
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    softWrap = false
                                 )
                             }
-                        }
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        FilledTonalIconButton(
-                            onClick = { showAboutDialog = true },
-                            modifier = Modifier.size(36.dp),
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            Icon(Icons.Default.Info, contentDescription = "À propos", modifier = Modifier.size(18.dp))
-                        }
-                        FilledTonalIconButton(
-                            onClick = { viewModel.forceSync() },
-                            modifier = Modifier.size(36.dp),
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Synchroniser", modifier = Modifier.size(18.dp))
-                        }
-                        FilledTonalIconButton(
-                            onClick = onNavigateToSettings,
-                            modifier = Modifier.size(36.dp),
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
-                            )
-                        ) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = "Paramètres",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
                         }
                     }
                 }

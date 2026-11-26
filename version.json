@@ -1,8 +1,8 @@
 {
-  "versionCode": 7,
-  "versionName": "2.2.3",
+  "versionCode": 8,
+  "versionName": "2.2.4",
   "releaseDate": "2026-11-26",
-  "changelog": "- ✨ Refonte esthétique complète (Interface médicale moderne, cartes épurées, barre de statut harmonisée)\n- 🔍 Ajout d'une barre de recherche instantanée de patients (par nom, téléphone ou date) + filtres rapides\n- 📊 Tableau de bord interactif en un coup d'œil (Aujourd'hui, En attente, Envoyés, Total)\n- 📅 Sélection rapide de dates (+48h, Demain, Aujourd'hui) et formulaire rétractable",
-  "downloadUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/download/v2.2.3/DocPocket-SMS-RDV.apk",
-  "releaseUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/tag/v2.2.3"
+  "changelog": "- 🖼️ En-tête réorganisé sur 2 niveaux : logo, titre complet « DocPocket SMS RDV » et nom complet du médecin visibles sans coupure\n- 🩺 Correction du message de bienvenue et de l'en-tête pour éviter le double « Dr » (ex: Dr HAMED BEN KHALIFA)",
+  "downloadUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/download/v2.2.4/DocPocket-SMS-RDV.apk",
+  "releaseUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/tag/v2.2.4"
 }

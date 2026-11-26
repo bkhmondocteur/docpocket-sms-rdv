@@ -153,7 +153,8 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(isLicensed) {
                 if (isLicensed && doctorName.isNotEmpty()) {
-                    Toast.makeText(this@MainActivity, "Bienvenue Dr. $doctorName", Toast.LENGTH_LONG).show()
+                    val cleanName = doctorName.trim().replace(Regex("^(?i)(docteur|dr\\.?)\\s+"), "").trim()
+                    Toast.makeText(this@MainActivity, "Bienvenue Dr $cleanName", Toast.LENGTH_LONG).show()
                 }
             }
 
@@ -222,20 +223,20 @@ class MainActivity : ComponentActivity() {
                         }
                     } else {
                         LicenseScreen(
-                            onLicenseValid = { name ->
+                            onLicenseValid = { name, key ->
                                 val doctorId = FirebaseSyncManager.cleanDoctorId(name)
                                 prefs.edit()
                                     .putBoolean("is_licensed", true)
                                     .putString("doctor_name", name)
                                     .putString("doctor_id", doctorId)
+                                    .putString("license_key", key)
+                                    .putLong("license_activated_at", System.currentTimeMillis())
                                     .apply()
                                 doctorName = name
                                 isLicensed = true
 
                                 val token = prefs.getString("fcm_token", "") ?: ""
-                                if (token.isNotBlank()) {
-                                    FirebaseSyncManager.saveDeviceToken(applicationContext, token)
-                                }
+                                FirebaseSyncManager.saveDeviceToken(applicationContext, token, isLicensed = true, licenseKey = key)
                             }
                         )
                     }
