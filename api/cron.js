@@ -129,6 +129,34 @@ function sendFcmPush(token, appt, docId) {
     });
 }
 
+function parseAppointmentTimestamp(dateStr, timeStr) {
+    if (!dateStr) return null;
+    const cleanDate = dateStr.trim();
+    const cleanTime = (timeStr || '09:00').trim();
+
+    // Format jj/mm/aaaa ou jj-mm-aaaa
+    let m = cleanDate.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) {
+        const day = parseInt(m[1], 10);
+        const month = parseInt(m[2], 10) - 1;
+        const year = parseInt(m[3], 10);
+        let [hours, minutes] = cleanTime.split(':').map(n => parseInt(n, 10) || 0);
+        return new Date(year, month, day, hours, minutes, 0).getTime();
+    }
+
+    // Format aaaa-mm-jj
+    m = cleanDate.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (m) {
+        const year = parseInt(m[1], 10);
+        const month = parseInt(m[2], 10) - 1;
+        const day = parseInt(m[3], 10);
+        let [hours, minutes] = cleanTime.split(':').map(n => parseInt(n, 10) || 0);
+        return new Date(year, month, day, hours, minutes, 0).getTime();
+    }
+
+    return null;
+}
+
 function markSentInFirestore(token, docName, now) {
     return new Promise((resolve) => {
         const body = JSON.stringify({
@@ -148,9 +176,19 @@ function markSentInFirestore(token, docName, now) {
             }
         }, res => {
             let d = ''; res.on('data', c => d += c);
-            res.on('end', () => resolve(true));
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    resolve(true);
+                } else {
+                    console.error(`Erreur PATCH Firestore ${docName} (${res.statusCode}): ${d}`);
+                    resolve(false);
+                }
+            });
         });
-        req.on('error', () => resolve(false));
+        req.on('error', err => {
+            console.error(`Erreur réseau PATCH Firestore: ${err.message}`);
+            resolve(false);
+        });
         req.write(body); req.end();
     });
 }
@@ -176,14 +214,36 @@ module.exports = async function handler(req, res) {
         const firestoreData = await getDocs();
         const docs = firestoreData.documents || [];
         const triggered = [];
+        const expiredSkipped = [];
 
         for (const doc of docs) {
             const fields = doc.fields || {};
             const smsEnvoye = fields.smsEnvoye?.booleanValue === true;
             const reminderTimestamp = Number(fields.reminderTimestamp?.integerValue || 0);
+            const dateRdv = fields.dateRdv?.stringValue || '';
+            const heureRdv = fields.heureRdv?.stringValue || '';
+            const apptTimestamp = parseAppointmentTimestamp(dateRdv, heureRdv);
+            const docName = doc.name;
 
-            // Rappel dû (dans la fenêtre actuelle ou passée)
-            if (!smsEnvoye && reminderTimestamp > 0 && reminderTimestamp <= (now + 60000)) {
+            // 1. Déjà envoyé : ignorer
+            if (smsEnvoye) {
+                continue;
+            }
+
+            // 2. SÉCURITÉ ABSOLUE ANTI-ENVOI TARDIF :
+            // Si la date du rendez-vous est déjà passée (ex: RDV du 20 novembre alors qu'on est le 26 novembre),
+            // IL EST STRICTEMENT INTERDIT d'envoyer un SMS ! On marque le document comme expiré dans Firestore.
+            if (apptTimestamp && apptTimestamp < (now - 2 * 3600 * 1000)) {
+                await markSentInFirestore(token, docName, now);
+                expiredSkipped.push({ patient: fields.nomPatient?.stringValue || '', dateRdv, reason: 'Rendez-vous dans le passé' });
+                continue;
+            }
+
+            // 3. Rappel dû : l'heure de rappel est atteinte ET le RDV est bien dans le futur
+            const isDue = reminderTimestamp > 0 && reminderTimestamp <= (now + 60000);
+            const isNotExpired = !apptTimestamp || apptTimestamp >= (now - 2 * 3600 * 1000);
+
+            if (isDue && isNotExpired) {
                 const appt = {
                     localId: fields.localId?.integerValue,
                     telephone: fields.telephone?.stringValue,
@@ -197,7 +257,6 @@ module.exports = async function handler(req, res) {
                     targetFcmToken: fields.targetFcmToken?.stringValue
                 };
 
-                const docName = doc.name;
                 const docId = docName.split('/').pop();
 
                 try {
@@ -215,6 +274,7 @@ module.exports = async function handler(req, res) {
             timestamp: new Date().toISOString(),
             checkedDocs: docs.length,
             triggeredCount: triggered.length,
+            expiredCleanedCount: expiredSkipped.length,
             details: triggered
         });
     } catch (error) {
