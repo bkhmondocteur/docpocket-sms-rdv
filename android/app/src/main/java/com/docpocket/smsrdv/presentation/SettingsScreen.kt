@@ -168,8 +168,11 @@ fun SettingsScreen(
                     Button(
                         onClick = {
                             val parsedHours = reminderHours.toIntOrNull() ?: 48
+                            val cleanDoctorName = doctorName.trim().replace(Regex("^(?i)(docteur|dr\\.?)\\s+"), "").trim()
+                            val newDoctorId = com.docpocket.smsrdv.firebase.FirebaseSyncManager.cleanDoctorId(cleanDoctorName)
                             prefs.edit()
-                                .putString("doctor_name", doctorName)
+                                .putString("doctor_name", cleanDoctorName)
+                                .putString("doctor_id", newDoctorId)
                                 .putString("smtp_email", smtpEmail)
                                 .putString("smtp_password", smtpPassword)
                                 .putString("template_fr", templateFr)
@@ -178,6 +181,9 @@ fun SettingsScreen(
                                 .putString("server_ip", serverIp)
                                 .putInt("reminder_hours", parsedHours)
                                 .apply()
+
+                            val savedFcmToken = prefs.getString("fcm_token", "") ?: ""
+                            com.docpocket.smsrdv.firebase.FirebaseSyncManager.saveDeviceToken(context, savedFcmToken)
 
                             val serviceIntent = android.content.Intent(context, com.docpocket.smsrdv.worker.SyncService::class.java)
                             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {

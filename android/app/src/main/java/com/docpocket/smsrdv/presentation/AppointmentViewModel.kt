@@ -311,6 +311,19 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
             // Synchronisation Cloud Firebase pour réveil FCM distant autonome (clé déterministe unique)
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
+                    if ((prefs.getString("fcm_token", "") ?: "").isBlank()) {
+                        try {
+                            val freshToken = com.google.android.gms.tasks.Tasks.await(
+                                com.google.firebase.messaging.FirebaseMessaging.getInstance().token,
+                                5,
+                                java.util.concurrent.TimeUnit.SECONDS
+                            )
+                            if (!freshToken.isNullOrBlank()) {
+                                prefs.edit().putString("fcm_token", freshToken).apply()
+                                com.docpocket.smsrdv.firebase.FirebaseSyncManager.saveDeviceToken(context, freshToken)
+                            }
+                        } catch (_: Exception) {}
+                    }
                     val savedAppt = appointmentDao.getAppointmentById(id)
                     if (savedAppt != null) {
                         val doctorId = com.docpocket.smsrdv.firebase.FirebaseSyncManager.getDoctorId(context)

@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DocPocket SMS RDV - Générateur de Licence</title>
+    <title>Keygen DocPocket SMS RDV — Licences & Médecins</title>
     <link rel="icon" type="image/png" href="icons/icon-192.png">
     <style>
         :root {
             --primary: #0284c7;
-            --primary-dark: #0369a1;
             --gold: #d97706;
             --gold-light: #fbbf24;
             --bg-gradient: linear-gradient(135deg, #070d1e 0%, #0f172a 50%, #0c1427 100%);
@@ -17,6 +16,7 @@
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --success: #22c55e;
+            --danger: #ef4444;
             --radius: 12px;
         }
 
@@ -31,28 +31,36 @@
             background: var(--bg-gradient);
             color: var(--text-main);
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
+            padding: 24px 16px 48px;
         }
 
-        .keygen-card {
+        .container {
             width: 100%;
-            max-width: 520px;
+            max-width: 820px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+        }
+
+        .keygen-card, .doctors-card {
+            width: 100%;
             background: var(--card-bg);
             border: 1.5px solid var(--card-border);
             border-radius: 20px;
-            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 35px rgba(217, 119, 6, 0.15);
-            padding: 36px 30px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.55), 0 0 35px rgba(217, 119, 6, 0.12);
+            padding: 28px 26px;
+        }
+
+        .header {
             text-align: center;
-            position: relative;
+            margin-bottom: 20px;
         }
 
         .header-logo {
-            width: 90px;
-            height: 90px;
-            margin: 0 auto 16px;
+            width: 78px;
+            height: 78px;
+            margin: 0 auto 12px;
             border-radius: 50%;
             border: 2px solid var(--gold-light);
             box-shadow: 0 0 20px rgba(251, 191, 36, 0.35);
@@ -61,6 +69,7 @@
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            font-size: 2rem;
         }
 
         .header-logo img {
@@ -70,94 +79,87 @@
         }
 
         h1 {
-            font-size: 1.55rem;
+            font-size: 1.5rem;
             color: #facc15;
             font-weight: 700;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
+            letter-spacing: 0.4px;
+            margin-bottom: 4px;
         }
 
         .subtitle {
             font-size: 0.9rem;
             color: var(--text-muted);
-            margin-bottom: 24px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: flex-end;
         }
 
         .form-group {
+            flex: 1;
+            min-width: 240px;
             text-align: left;
-            margin-bottom: 20px;
         }
 
         label {
             display: block;
-            font-size: 0.88rem;
+            font-size: 0.85rem;
             font-weight: 600;
             color: #e2e8f0;
-            margin-bottom: 8px;
+            margin-bottom: 7px;
         }
 
-        .input-wrapper {
-            position: relative;
-        }
-
-        input[type="text"] {
+        input[type="text"], input[type="search"] {
             width: 100%;
-            padding: 13px 16px;
+            padding: 12px 15px;
             background: #091122;
             border: 1.5px solid #334155;
             border-radius: var(--radius);
             color: #fff;
-            font-size: 1.05rem;
+            font-size: 1rem;
             outline: none;
             transition: all 0.2s;
         }
 
-        input[type="text"]:focus {
+        input:focus {
             border-color: var(--gold-light);
-            box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.25);
+            box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2);
         }
 
         .btn-generate {
-            width: 100%;
-            padding: 14px;
+            padding: 13px 22px;
             background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%);
             border: none;
             border-radius: var(--radius);
             color: #0f172a;
-            font-size: 1.05rem;
+            font-size: 0.98rem;
             font-weight: 800;
             cursor: pointer;
-            box-shadow: 0 6px 20px rgba(217, 119, 6, 0.4);
+            box-shadow: 0 6px 20px rgba(217, 119, 6, 0.35);
             transition: transform 0.15s, box-shadow 0.15s;
-            margin-top: 6px;
+            white-space: nowrap;
         }
 
         .btn-generate:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(217, 119, 6, 0.55);
-        }
-
-        .btn-generate:active {
-            transform: translateY(0);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(217, 119, 6, 0.5);
         }
 
         .result-box {
             display: none;
-            margin-top: 24px;
+            margin-top: 20px;
             background: rgba(217, 119, 6, 0.08);
             border: 1.5px dashed #f59e0b;
             border-radius: var(--radius);
-            padding: 20px;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(6px); }
-            to { opacity: 1; transform: translateY(0); }
+            padding: 18px;
+            text-align: center;
         }
 
         .result-title {
-            font-size: 0.82rem;
+            font-size: 0.78rem;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--gold-light);
@@ -167,37 +169,37 @@
 
         .key-display {
             font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 1.45rem;
+            font-size: 1.4rem;
             font-weight: 800;
             color: #facc15;
             letter-spacing: 2px;
             background: #050a16;
-            padding: 12px;
+            padding: 11px 14px;
             border-radius: 8px;
             border: 1px solid rgba(251, 191, 36, 0.3);
-            margin-bottom: 14px;
+            margin-bottom: 12px;
             user-select: all;
             word-break: break-all;
         }
 
-        .btn-copy {
-            width: 100%;
-            padding: 10px;
+        .btn-copy, .btn-action {
+            padding: 8px 13px;
             background: #1e293b;
             border: 1px solid #475569;
             color: #f8fafc;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
-            font-size: 0.92rem;
+            font-size: 0.85rem;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
             transition: all 0.2s;
+            white-space: nowrap;
         }
 
-        .btn-copy:hover {
+        .btn-copy:hover, .btn-action:hover {
             background: #334155;
             color: #fff;
         }
@@ -208,72 +210,254 @@
             color: #4ade80 !important;
         }
 
-        .instructions {
-            margin-top: 24px;
-            padding-top: 18px;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            line-height: 1.5;
-            text-align: left;
+        .btn-revoke {
+            background: rgba(239, 68, 68, 0.14);
+            border-color: rgba(239, 68, 68, 0.45);
+            color: #fca5a5;
         }
 
-        .instructions strong {
-            color: #e2e8f0;
+        .btn-revoke:hover {
+            background: rgba(239, 68, 68, 0.28);
+            color: #fff;
         }
 
-        .badge-verified {
-            display: inline-flex;
+        .btn-activate {
+            background: rgba(34, 197, 94, 0.14);
+            border-color: rgba(34, 197, 94, 0.45);
+            color: #86efac;
+        }
+
+        .btn-activate:hover {
+            background: rgba(34, 197, 94, 0.28);
+            color: #fff;
+        }
+
+        .btn-delete {
+            background: transparent;
+            border-color: rgba(148, 163, 184, 0.3);
+            color: #94a3b8;
+        }
+
+        .btn-delete:hover {
+            border-color: #ef4444;
+            color: #fca5a5;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 4px;
-            font-size: 0.72rem;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stats-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+            align-items: center;
+        }
+
+        .stat-pill {
+            font-size: 0.78rem;
+            padding: 4px 11px;
+            border-radius: 20px;
+            font-weight: 700;
+            background: #091122;
+            border: 1px solid #334155;
+            color: #cbd5e1;
+        }
+
+        .stat-pill.active {
+            border-color: rgba(34, 197, 94, 0.4);
             color: #4ade80;
-            background: rgba(34, 197, 94, 0.12);
-            padding: 2px 8px;
-            border-radius: 12px;
-            margin-top: 8px;
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .stat-pill.revoked {
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .doctor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .doctor-item {
+            background: #091122;
+            border: 1px solid #26354d;
+            border-radius: 14px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            transition: border-color 0.2s;
+        }
+
+        .doctor-item.is-revoked {
+            border-color: rgba(239, 68, 68, 0.45);
+            background: rgba(127, 29, 29, 0.12);
+        }
+
+        .doctor-info {
+            flex: 1;
+            min-width: 240px;
+        }
+
+        .doctor-name-row {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            flex-wrap: wrap;
+            margin-bottom: 5px;
+        }
+
+        .doctor-name {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .status-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .status-badge.active {
+            background: rgba(34, 197, 94, 0.16);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+
+        .status-badge.revoked {
+            background: rgba(239, 68, 68, 0.18);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.45);
+        }
+
+        .doctor-meta {
+            font-size: 0.79rem;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        .doctor-key-chip {
+            display: inline-block;
+            margin-top: 7px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: #facc15;
+            background: rgba(250, 204, 21, 0.08);
+            border: 1px solid rgba(250, 204, 21, 0.25);
+            padding: 4px 10px;
+            border-radius: 7px;
+            letter-spacing: 1px;
+        }
+
+        .doctor-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 28px 12px;
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .error-banner {
+            display: none;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.45);
+            color: #fecaca;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.84rem;
+            margin-bottom: 12px;
         }
     </style>
 </head>
 <body>
 
-    <div class="keygen-card">
-        <div class="header-logo">
-            <img src="icons/icon-192.png" alt="Logo DocPocket SMS RDV" onerror="this.src='favicon.png';">
-        </div>
+    <div class="container">
+        <!-- CARTE 1 : GÉNÉRATEUR DE CLÉ -->
+        <div class="keygen-card">
+            <div class="header">
+                <div class="header-logo">
+                    <img src="icons/icon-192.png" alt="DocPocket SMS RDV" onerror="this.style.display='none'; this.parentElement.textContent='🩺';">
+                </div>
+                <h1>Keygen — DocPocket SMS RDV</h1>
+                <p class="subtitle">Générateur de Clés & Console d'Administration des Licences</p>
+            </div>
 
-        <h1>DocPocket SMS RDV</h1>
-        <p class="subtitle">Générateur Officiel de Clé d'Activation</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="doctor-name">Nom du Médecin :</label>
+                    <input type="text" id="doctor-name" placeholder="Ex: Hamed BEN KHALIFA" autocomplete="off" autofocus>
+                </div>
+                <button class="btn-generate" onclick="generateLicense()">🔑 Générer la Clé</button>
+            </div>
 
-        <div class="form-group">
-            <label for="doctor-name">Nom du Médecin :</label>
-            <div class="input-wrapper">
-                <input type="text" id="doctor-name" placeholder="Ex: DR DUPONT ou BEN KHALED" autocomplete="off" autofocus>
+            <div id="result-box" class="result-box">
+                <div class="result-title">Clé d'activation générée :</div>
+                <div id="key-display" class="key-display">----</div>
+                <button id="btn-copy" class="btn-copy" onclick="copyLicenseKey()">📋 Copier la clé</button>
             </div>
         </div>
 
-        <button class="btn-generate" onclick="generateLicense()">🔑 Générer la Clé de Licence</button>
+        <!-- CARTE 2 : LISTE DES MÉDECINS & RÉVOCATION -->
+        <div class="doctors-card">
+            <div class="section-header">
+                <div class="section-title">🩺 Médecins Enregistrés (Cloud)</div>
+                <button class="btn-action" id="btn-refresh" onclick="loadDoctors()">🔄 Actualiser</button>
+            </div>
 
-        <div id="result-box" class="result-box">
-            <div class="result-title">Clé de licence générée :</div>
-            <div id="key-display" class="key-display">----</div>
-            <button id="btn-copy" class="btn-copy" onclick="copyLicenseKey()">
-                📋 Copier la clé
-            </button>
-            <div class="badge-verified">✓ Compatible Version Android & PC</div>
-        </div>
+            <div class="stats-bar">
+                <span class="stat-pill" id="stat-total">Total : —</span>
+                <span class="stat-pill active" id="stat-active">Actifs : —</span>
+                <span class="stat-pill revoked" id="stat-revoked">Révoqués : —</span>
+                <div style="flex:1; min-width: 180px;">
+                    <input type="search" id="search-doctor" placeholder="Rechercher un médecin..." oninput="renderDoctors()">
+                </div>
+            </div>
 
-        <div class="instructions">
-            <strong>Mode d'emploi :</strong>
-            <ol style="margin-left: 18px; margin-top: 6px;">
-                <li>Saisissez le nom exact du médecin (ex: <em>BEN KHALED</em>).</li>
-                <li>Cliquez sur <strong>Générer la Clé</strong> puis copiez la clé obtenue.</li>
-                <li>Dans l'application <strong>DocPocket SMS RDV</strong>, collez cette clé dans l'écran d'activation de la licence.</li>
-            </ol>
+            <div id="api-error" class="error-banner"></div>
+
+            <div id="doctor-list" class="doctor-list">
+                <div class="empty-state">Chargement des médecins depuis Firebase Cloud...</div>
+            </div>
         </div>
     </div>
 
     <script>
+        const API_URL = (window.location.protocol === 'file:' || !window.location.hostname)
+            ? 'https://docpocket-sms-rdv.vercel.app/api/licenses'
+            : (window.location.hostname.includes('vercel.app') ? '/api/licenses' : 'https://docpocket-sms-rdv.vercel.app/api/licenses');
+
         /* Standalone Pure JS MD5 (RFC 1321) Implementation */
         function md5cycle(x, k) {
             var a = x[0], b = x[1], c = x[2], d = x[3];
@@ -350,7 +534,6 @@
             x[2] = add32(c, x[2]);
             x[3] = add32(d, x[3]);
         }
-
         function cmn(q, a, b, x, s, t) {
             a = add32(add32(a, q), add32(x, t));
             return add32((a << s) | (a >>> (32 - s)), b);
@@ -359,111 +542,214 @@
         function gg(a, b, c, d, x, s, t) { return cmn((b & d) | (c & (~d)), a, b, x, s, t); }
         function hh(a, b, c, d, x, s, t) { return cmn(b ^ c ^ d, a, b, x, s, t); }
         function ii(a, b, c, d, x, s, t) { return cmn(c ^ (b | (~d)), a, b, x, s, t); }
-
         function md51(s) {
-            var n = s.length,
-                state = [1732584193, -271733879, -1732584194, 271733878], i;
-            for (i = 64; i <= s.length; i += 64) {
-                md5cycle(state, md5blk(s.substring(i - 64, i)));
-            }
+            var n = s.length, state = [1732584193, -271733879, -1732584194, 271733878], i;
+            for (i = 64; i <= s.length; i += 64) md5cycle(state, md5blk(s.substring(i - 64, i)));
             s = s.substring(i - 64);
-            var tail = [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0];
-            for (i = 0; i < s.length; i++)
-                tail[i >> 2] |= s.charCodeAt(i) << ((i % 4) << 3);
+            var tail = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+            for (i = 0; i < s.length; i++) tail[i >> 2] |= s.charCodeAt(i) << ((i % 4) << 3);
             tail[i >> 2] |= 0x80 << ((i % 4) << 3);
-            if (i > 55) {
-                md5cycle(state, tail);
-                for (i = 0; i < 16; i++) tail[i] = 0;
-            }
+            if (i > 55) { md5cycle(state, tail); for (i = 0; i < 16; i++) tail[i] = 0; }
             tail[14] = n * 8;
             md5cycle(state, tail);
             return state;
         }
-
         function md5blk(s) {
             var md5blks = [], i;
             for (i = 0; i < 64; i += 4) {
-                md5blks[i >> 2] = s.charCodeAt(i)
-                    + (s.charCodeAt(i + 1) << 8)
-                    + (s.charCodeAt(i + 2) << 16)
-                    + (s.charCodeAt(i + 3) << 24);
+                md5blks[i >> 2] = s.charCodeAt(i) + (s.charCodeAt(i + 1) << 8) + (s.charCodeAt(i + 2) << 16) + (s.charCodeAt(i + 3) << 24);
             }
             return md5blks;
         }
-
         var hex_chr = '0123456789abcdef'.split('');
-
         function rhex(n) {
             var s = '', j = 0;
-            for (; j < 4; j++)
-                s += hex_chr[(n >> (j * 8 + 4)) & 0x0F] + hex_chr[(n >> (j * 8)) & 0x0F];
+            for (; j < 4; j++) s += hex_chr[(n >> (j * 8 + 4)) & 0x0F] + hex_chr[(n >> (j * 8)) & 0x0F];
             return s;
         }
-
-        function hex(x) {
-            for (var i = 0; i < x.length; i++)
-                x[i] = rhex(x[i]);
-            return x.join('');
-        }
-
-        function md5(s) {
-            return hex(md51(unescape(encodeURIComponent(s))));
-        }
-
-        function add32(a, b) {
-            return (a + b) & 0xFFFFFFFF;
-        }
+        function hex(x) { for (var i = 0; i < x.length; i++) x[i] = rhex(x[i]); return x.join(''); }
+        function md5(s) { return hex(md51(unescape(encodeURIComponent(s)))); }
+        function add32(a, b) { return (a + b) & 0xFFFFFFFF; }
 
         const SECRET_SALT = "MEDWIN_SEC_2026";
+        let loadedDoctors = [];
+
+        function computeKeyForName(name) {
+            const nameClean = String(name || '').trim().toUpperCase();
+            if (!nameClean) return '';
+            const hash = md5(nameClean + SECRET_SALT).toUpperCase();
+            const keyBase = hash.substring(0, 16);
+            return keyBase.substring(0, 4) + '-' + keyBase.substring(4, 8) + '-' + keyBase.substring(8, 12) + '-' + keyBase.substring(12, 16);
+        }
 
         function generateLicense() {
             const nameInput = document.getElementById('doctor-name').value;
-            const nameClean = nameInput.trim().toUpperCase();
-
-            if (!nameClean) {
+            const formattedKey = computeKeyForName(nameInput);
+            if (!formattedKey) {
                 alert("Veuillez saisir le nom du médecin.");
                 document.getElementById('doctor-name').focus();
                 return;
             }
-
-            const rawString = nameClean + SECRET_SALT;
-            const hash = md5(rawString).toUpperCase();
-            const keyBase = hash.substring(0, 16);
-            const formattedKey = keyBase.substring(0, 4) + '-' +
-                                 keyBase.substring(4, 8) + '-' +
-                                 keyBase.substring(8, 12) + '-' +
-                                 keyBase.substring(12, 16);
-
             document.getElementById('key-display').textContent = formattedKey;
             document.getElementById('result-box').style.display = 'block';
-
-            // Reset copy button state
             const btnCopy = document.getElementById('btn-copy');
             btnCopy.className = 'btn-copy';
             btnCopy.innerHTML = '📋 Copier la clé';
         }
 
-        function copyLicenseKey() {
-            const key = document.getElementById('key-display').textContent;
-            navigator.clipboard.writeText(key).then(() => {
-                const btnCopy = document.getElementById('btn-copy');
-                btnCopy.className = 'btn-copy copied';
-                btnCopy.innerHTML = '✓ Clé copiée !';
+        function copyTextWithFeedback(text, btnElement, originalHtml) {
+            navigator.clipboard.writeText(text).then(() => {
+                btnElement.classList.add('copied');
+                btnElement.innerHTML = '✓ Clé copiée !';
                 setTimeout(() => {
-                    btnCopy.className = 'btn-copy';
-                    btnCopy.innerHTML = '📋 Copier la clé';
-                }, 2500);
+                    btnElement.classList.remove('copied');
+                    btnElement.innerHTML = originalHtml;
+                }, 2200);
             }).catch(() => {
-                alert("Erreur lors de la copie.");
+                alert("Clé : " + text);
             });
         }
 
-        // Live generate on Enter key or typing
-        document.getElementById('doctor-name').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                generateLicense();
+        function copyLicenseKey() {
+            const key = document.getElementById('key-display').textContent;
+            copyTextWithFeedback(key, document.getElementById('btn-copy'), '📋 Copier la clé');
+        }
+
+        function formatDate(ts) {
+            if (!ts) return '—';
+            try {
+                return new Date(ts).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+            } catch (_) {
+                return '—';
             }
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+        }
+
+        async function loadDoctors() {
+            const btn = document.getElementById('btn-refresh');
+            const errBox = document.getElementById('api-error');
+            errBox.style.display = 'none';
+            btn.disabled = true;
+            btn.textContent = '⏳ Chargement...';
+
+            try {
+                const res = await fetch(API_URL);
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || 'Erreur HTTP ' + res.status);
+                }
+                loadedDoctors = data.doctors || [];
+                renderDoctors();
+            } catch (err) {
+                errBox.style.display = 'block';
+                errBox.textContent = "Impossible de charger la liste Cloud : " + err.message;
+                document.getElementById('doctor-list').innerHTML = '<div class="empty-state">Connexion au serveur Cloud indisponible.</div>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔄 Actualiser';
+            }
+        }
+
+        function renderDoctors() {
+            const listEl = document.getElementById('doctor-list');
+            const q = (document.getElementById('search-doctor').value || '').trim().toLowerCase();
+
+            const activeCount = loadedDoctors.filter(d => d.isLicensed).length;
+            const revokedCount = loadedDoctors.length - activeCount;
+            document.getElementById('stat-total').textContent = `Total : ${loadedDoctors.length}`;
+            document.getElementById('stat-active').textContent = `Actifs : ${activeCount}`;
+            document.getElementById('stat-revoked').textContent = `Révoqués : ${revokedCount}`;
+
+            const filtered = loadedDoctors.filter(d =>
+                !q ||
+                (d.doctorName || '').toLowerCase().includes(q) ||
+                (d.doctorId || '').toLowerCase().includes(q) ||
+                (d.licenseKey || '').toLowerCase().includes(q)
+            );
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = '<div class="empty-state">Aucun médecin trouvé.</div>';
+                return;
+            }
+
+            listEl.innerHTML = filtered.map((d, idx) => {
+                const keyToShow = d.licenseKey || computeKeyForName(d.doctorName);
+                const statusBadge = d.isLicensed
+                    ? '<span class="status-badge active">✓ Licence Active</span>'
+                    : '<span class="status-badge revoked">✕ Révoquée</span>';
+
+                const toggleBtn = d.isLicensed
+                    ? `<button class="btn-action btn-revoke" onclick="toggleLicense('${escapeHtml(d.docId)}', 'revoke', '${escapeHtml(d.doctorName)}')">🚫 Révoquer</button>`
+                    : `<button class="btn-action btn-activate" onclick="toggleLicense('${escapeHtml(d.docId)}', 'activate', '${escapeHtml(d.doctorName)}', '${escapeHtml(keyToShow)}')">✅ Réactiver</button>`;
+
+                return `
+                    <div class="doctor-item ${d.isLicensed ? '' : 'is-revoked'}">
+                        <div class="doctor-info">
+                            <div class="doctor-name-row">
+                                <span class="doctor-name">${escapeHtml(d.doctorName)}</span>
+                                ${statusBadge}
+                            </div>
+                            <div class="doctor-meta">
+                                ID : <code>${escapeHtml(d.doctorId)}</code>
+                                ${d.deviceModel ? ` · 📱 ${escapeHtml(d.deviceModel)} (Android ${escapeHtml(d.androidVersion)})` : ''}
+                                <br>Dernière activité : ${formatDate(d.lastUpdated)} · Push FCM : ${d.hasFcmToken ? '🟢 Prêt' : '🔴 Absent'}
+                            </div>
+                            <div class="doctor-key-chip">${escapeHtml(keyToShow || 'Clé non calculée')}</div>
+                        </div>
+                        <div class="doctor-actions">
+                            <button class="btn-copy" onclick="copyTextWithFeedback('${escapeHtml(keyToShow)}', this, '📋 Copier la clé')">📋 Copier la clé</button>
+                            ${toggleBtn}
+                            <button class="btn-action btn-delete" title="Supprimer ce profil" onclick="deleteDoctor('${escapeHtml(d.docId)}', '${escapeHtml(d.doctorName)}')">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function toggleLicense(docId, action, doctorName, licenseKey = '') {
+            const label = action === 'revoke'
+                ? `Voulez-vous vraiment RÉVOQUER la licence du Dr ${doctorName} ?\n\nL'application et les envois SMS Cloud seront immédiatement bloqués.`
+                : `Réactiver la licence du Dr ${doctorName} ?`;
+            if (!confirm(label)) return;
+
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, docId, doctorName, licenseKey })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.error || 'Échec opération');
+                await loadDoctors();
+            } catch (err) {
+                alert("Erreur : " + err.message);
+            }
+        }
+
+        async function deleteDoctor(docId, doctorName) {
+            if (!confirm(`Supprimer définitivement le profil "${doctorName}" (${docId}) de Firestore ?`)) return;
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'delete', docId })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.error || 'Échec suppression');
+                await loadDoctors();
+            } catch (err) {
+                alert("Erreur : " + err.message);
+            }
+        }
+
+        document.getElementById('doctor-name').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') generateLicense();
         });
+
+        loadDoctors();
     </script>
 </body>
 </html>

@@ -244,9 +244,15 @@ class SyncService : Service() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
         )
 
+        // Afficher le nom propre du médecin sans doublon "Dr Dr..."
+        val prefs = getSharedPreferences("docpocket_prefs", Context.MODE_PRIVATE)
+        val rawName = prefs.getString("doctor_name", "") ?: ""
+        val cleanName = rawName.trim().replace(Regex("^(?i)(docteur|dr\\.?)\\s+"), "").trim()
+        val displayName = if (cleanName.isNotEmpty()) "Dr $cleanName" else "DocPocket"
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("DocPocket SMS RDV")
-            .setContentText("DocPocket SMS RDV : Service de rappels actif")
+            .setContentText("$displayName · Rappels SMS actifs ✓")
             .setSmallIcon(android.R.drawable.ic_popup_sync)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

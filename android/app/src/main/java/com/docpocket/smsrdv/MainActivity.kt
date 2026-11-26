@@ -17,6 +17,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -158,6 +159,25 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // Vérification temps réel sur Firestore : bloque l'app si la licence est révoquée depuis le Keygen
+            DisposableEffect(isLicensed) {
+                val registration = if (isLicensed) {
+                    FirebaseSyncManager.listenToLicenseStatus(applicationContext) {
+                        runOnUiThread {
+                            isLicensed = false
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Votre licence a été révoquée par l'administrateur.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                } else null
+                onDispose {
+                    registration?.remove()
+                }
+            }
+
             var showSettings by remember { mutableStateOf(false) }
 
             var showInitialBackupSetup by remember {
@@ -236,7 +256,27 @@ class MainActivity : ComponentActivity() {
                                 isLicensed = true
 
                                 val token = prefs.getString("fcm_token", "") ?: ""
-                                FirebaseSyncManager.saveDeviceToken(applicationContext, token, isLicensed = true, licenseKey = key)
+                                FirebaseSyncManager.saveDeviceToken(
+                                    applicationContext,
+                                    token,
+                                    isLicensed = true,
+                                    licenseKey = key,
+                                    isNewActivation = true
+                                )
+                                if (token.isBlank()) {
+                                    FirebaseMessaging.getInstance().token.addOnCompleteListener { t ->
+                                        if (t.isSuccessful && !t.result.isNullOrBlank()) {
+                                            prefs.edit().putString("fcm_token", t.result).apply()
+                                            FirebaseSyncManager.saveDeviceToken(
+                                                applicationContext,
+                                                t.result,
+                                                isLicensed = true,
+                                                licenseKey = key,
+                                                isNewActivation = true
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         )
                     }

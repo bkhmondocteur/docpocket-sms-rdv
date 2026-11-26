@@ -89,7 +89,9 @@ class SmsSender(private val context: Context) {
 
                 try {
                     val prefs = context.getSharedPreferences("docpocket_prefs", Context.MODE_PRIVATE)
-                val doctorName = prefs.getString("doctor_name", "") ?: ""
+                val rawDoctorName = prefs.getString("doctor_name", "") ?: ""
+                // Supprimer le préfixe "Dr" ou "Docteur" déjà présent pour éviter le doublon "Docteur DR..."
+                val doctorName = rawDoctorName.trim().replace(Regex("^(?i)(docteur|dr\\.?)\\s+"), "").trim()
 
                 val message = if (appointment.texteSms.isNotBlank()) {
                     appointment.texteSms

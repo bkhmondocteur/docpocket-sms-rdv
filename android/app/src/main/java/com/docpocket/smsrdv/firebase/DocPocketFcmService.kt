@@ -8,9 +8,9 @@ import com.docpocket.smsrdv.data.local.AppointmentEntity
 import com.docpocket.smsrdv.sms.SmsSender
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -57,8 +57,14 @@ class DocPocketFcmService : FirebaseMessagingService() {
             val apptId = (data["appointmentId"] ?: data["id"])?.toIntOrNull() ?: 0
             val targetDoctorId = data["doctorId"] ?: ""
 
-            // Isolation hermétique multi-médecins :
+            // Isolation hermétique multi-médecins et vérification licence active :
             val prefs = applicationContext.getSharedPreferences("docpocket_prefs", Context.MODE_PRIVATE)
+            val isLicensed = prefs.getBoolean("is_licensed", false)
+            if (!isLicensed) {
+                Log.w(TAG, "Push FCM ignoré : licence inactive ou révoquée sur cet appareil.")
+                return
+            }
+
             val myDoctorId = FirebaseSyncManager.getDoctorId(applicationContext)
 
             if (targetDoctorId.isNotBlank() && myDoctorId.isNotBlank() && targetDoctorId != myDoctorId) {
@@ -73,93 +79,96 @@ class DocPocketFcmService : FirebaseMessagingService() {
                 return
             }
 
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val db = AppDatabase.getDatabase(applicationContext)
-                    val dao = db.appointmentDao()
+            // Exécution synchrone bornée pour maintenir le WakeLock actif jusqu'à l'envoi SIM effectif
+            runBlocking(Dispatchers.IO) {
+                withTimeoutOrNull(35_000L) {
+                    try {
+                        val db = AppDatabase.getDatabase(applicationContext)
+                        val dao = db.appointmentDao()
 
-                    val currentTime = System.currentTimeMillis()
-                    val apptDateTime = parseAppointmentDateTime(dateRdv, heureRdv)
+                        val currentTime = System.currentTimeMillis()
+                        val apptDateTime = parseAppointmentDateTime(dateRdv, heureRdv)
 
-                    // 1. PROTECTION STRICTE ANTI-RETARD : Si le RDV est déjà dépassé dans le temps, rejet catégorique
-                    if (apptDateTime != null && apptDateTime.time < (currentTime - 2 * 3600 * 1000L)) {
-                        Log.w(TAG, "Push FCM rejeté : Le RDV de '$patientName' ($dateRdv à $heureRdv) est dépassé dans le passé. Aucun SMS ne sera renvoyé.")
-                        if (cloudKey.isNotBlank()) {
-                            FirebaseSyncManager.markSmsSentInCloud(cloudKey)
-                        }
-                        return@launch
-                    }
-
-                    // 2. Recherche anti-doublon multicritère (ID local, clé Cloud, ou Téléphone + Date)
-                    var existing: AppointmentEntity? = null
-                    if (apptId > 0) {
-                        existing = dao.getAppointmentById(apptId)
-                    }
-                    if (existing == null && cloudKey.isNotBlank()) {
-                        existing = dao.getAppointmentByFirebaseKey(cloudKey)
-                    }
-                    if (existing == null && phone.isNotBlank() && dateRdv.isNotBlank()) {
-                        existing = dao.getAppointmentByPhoneAndDate(phone, dateRdv)
-                    }
-                    if (existing == null && patientName.isNotBlank() && dateRdv.isNotBlank()) {
-                        existing = dao.getAppointmentByNameAndDate(patientName, dateRdv)
-                    }
-
-                    // 3. Vérification du statut déjà envoyé
-                    if (existing != null) {
-                        if (existing.smsEnvoye) {
-                            Log.i(TAG, "RDV #${existing.id} ($patientName - $dateRdv) déjà marqué envoyé en base locale. Doublon annulé.")
+                        // 1. PROTECTION STRICTE ANTI-RETARD : Si le RDV est déjà dépassé dans le temps, rejet catégorique
+                        if (apptDateTime != null && apptDateTime.time < (currentTime - 2 * 3600 * 1000L)) {
+                            Log.w(TAG, "Push FCM rejeté : Le RDV de '$patientName' ($dateRdv à $heureRdv) est dépassé dans le passé. Aucun SMS ne sera renvoyé.")
                             if (cloudKey.isNotBlank()) {
                                 FirebaseSyncManager.markSmsSentInCloud(cloudKey)
                             }
-                            return@launch
+                            return@withTimeoutOrNull
                         }
 
-                        // Verrou atomique SQLite
-                        val claimed = dao.claimAppointmentForSending(existing.id)
-                        if (claimed == 0) {
-                            Log.i(TAG, "RDV #${existing.id} déjà verrouillé par un autre processus.")
-                            return@launch
+                        // 2. Recherche anti-doublon multicritère (ID local, clé Cloud, ou Téléphone + Date)
+                        var existing: AppointmentEntity? = null
+                        if (apptId > 0) {
+                            existing = dao.getAppointmentById(apptId)
                         }
-                    } else if (apptDateTime != null && apptDateTime.time < currentTime) {
-                        // S'il n'existe pas en base locale et que l'heure du RDV est déjà dépassée, interdire la création
-                        Log.w(TAG, "RDV inconnu et déjà passé ($dateRdv $heureRdv). Ignoré sans création.")
-                        if (cloudKey.isNotBlank()) {
-                            FirebaseSyncManager.markSmsSentInCloud(cloudKey)
+                        if (existing == null && cloudKey.isNotBlank()) {
+                            existing = dao.getAppointmentByFirebaseKey(cloudKey)
                         }
-                        return@launch
+                        if (existing == null && phone.isNotBlank() && dateRdv.isNotBlank()) {
+                            existing = dao.getAppointmentByPhoneAndDate(phone, dateRdv)
+                        }
+                        if (existing == null && patientName.isNotBlank() && dateRdv.isNotBlank()) {
+                            existing = dao.getAppointmentByNameAndDate(patientName, dateRdv)
+                        }
+
+                        // 3. Vérification du statut déjà envoyé
+                        if (existing != null) {
+                            if (existing.smsEnvoye) {
+                                Log.i(TAG, "RDV #${existing.id} ($patientName - $dateRdv) déjà marqué envoyé en base locale. Doublon annulé.")
+                                if (cloudKey.isNotBlank()) {
+                                    FirebaseSyncManager.markSmsSentInCloud(cloudKey)
+                                }
+                                return@withTimeoutOrNull
+                            }
+
+                            // Verrou atomique SQLite
+                            val claimed = dao.claimAppointmentForSending(existing.id)
+                            if (claimed == 0) {
+                                Log.i(TAG, "RDV #${existing.id} déjà verrouillé par un autre processus.")
+                                return@withTimeoutOrNull
+                            }
+                        } else if (apptDateTime != null && apptDateTime.time < currentTime) {
+                            // S'il n'existe pas en base locale et que l'heure du RDV est déjà dépassée, interdire la création
+                            Log.w(TAG, "RDV inconnu et déjà passé ($dateRdv $heureRdv). Ignoré sans création.")
+                            if (cloudKey.isNotBlank()) {
+                                FirebaseSyncManager.markSmsSentInCloud(cloudKey)
+                            }
+                            return@withTimeoutOrNull
+                        }
+
+                        // 4. Préparer l'entité à expédier
+                        val apptToSend = existing ?: run {
+                            val newEntity = AppointmentEntity(
+                                id = 0,
+                                nomPatient = patientName,
+                                telephone = phone,
+                                dateRdv = dateRdv,
+                                heureRdv = heureRdv,
+                                texteSms = message,
+                                smsEnvoye = true, // Marqué envoyé d'emblée pour verrou
+                                language = language,
+                                firebaseKey = cloudKey,
+                                synced = true
+                            )
+                            val insertedId = dao.insertAppointment(newEntity).toInt()
+                            newEntity.copy(id = insertedId)
+                        }
+
+                        // 5. Déclenchement de l'envoi physique par la carte SIM
+                        val smsSender = SmsSender(applicationContext)
+                        smsSender.sendReminders(listOf(apptToSend.copy(smsEnvoye = false))) { sentId ->
+                            dao.markSmsAsSent(sentId)
+                            if (cloudKey.isNotBlank()) {
+                                FirebaseSyncManager.markSmsSentInCloud(cloudKey)
+                            }
+                        }
+
+                        Log.i(TAG, "Envoi SMS via carte SIM orchestré avec succès pour $patientName ($phone)")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Erreur lors du traitement FCM SMS: ${e.message}", e)
                     }
-
-                    // 4. Préparer l'entité à expédier
-                    val apptToSend = existing ?: run {
-                        val newEntity = AppointmentEntity(
-                            id = 0,
-                            nomPatient = patientName,
-                            telephone = phone,
-                            dateRdv = dateRdv,
-                            heureRdv = heureRdv,
-                            texteSms = message,
-                            smsEnvoye = true, // Marqué envoyé d'emblée pour verrou
-                            language = language,
-                            firebaseKey = cloudKey,
-                            synced = true
-                        )
-                        val insertedId = dao.insertAppointment(newEntity).toInt()
-                        newEntity.copy(id = insertedId)
-                    }
-
-                    // 5. Déclenchement de l'envoi physique par la carte SIM
-                    val smsSender = SmsSender(applicationContext)
-                    smsSender.sendReminders(listOf(apptToSend.copy(smsEnvoye = false))) { sentId ->
-                        dao.markSmsAsSent(sentId)
-                        if (cloudKey.isNotBlank()) {
-                            FirebaseSyncManager.markSmsSentInCloud(cloudKey)
-                        }
-                    }
-
-                    Log.i(TAG, "Envoi SMS via carte SIM orchestré avec succès pour $patientName ($phone)")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Erreur lors du traitement FCM SMS: ${e.message}", e)
                 }
             }
         } finally {
