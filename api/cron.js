@@ -204,9 +204,12 @@ module.exports = async function handler(req, res) {
             details: triggered
         });
     } catch (error) {
-        return res.status(500).json({
+        console.error("Cron execution error:", error);
+        // Toujours renvoyer HTTP 200 pour éviter que cron-job.org ne désactive automatiquement le cronjob après des erreurs temporaires
+        return res.status(200).json({
             success: false,
-            error: error.message
+            error: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 };
