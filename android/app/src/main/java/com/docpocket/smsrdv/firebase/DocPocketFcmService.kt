@@ -66,8 +66,9 @@ class DocPocketFcmService : FirebaseMessagingService() {
             }
 
             val myDoctorId = FirebaseSyncManager.getDoctorId(applicationContext)
+            val normTargetDoctorId = if (targetDoctorId.isNotBlank()) FirebaseSyncManager.cleanDoctorId(targetDoctorId) else ""
 
-            if (targetDoctorId.isNotBlank() && myDoctorId.isNotBlank() && targetDoctorId != myDoctorId) {
+            if (normTargetDoctorId.isNotBlank() && myDoctorId.isNotBlank() && normTargetDoctorId != myDoctorId) {
                 Log.w(TAG, "Push ignoré : destiné au Dr '$targetDoctorId' alors que cet appareil est configuré pour le Dr '$myDoctorId'")
                 return
             }

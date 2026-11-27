@@ -331,6 +331,16 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
                         appointmentDao.updateFirebaseKey(id, deterministicKey)
                         val updatedAppt = savedAppt.copy(firebaseKey = deterministicKey)
                         com.docpocket.smsrdv.firebase.FirebaseSyncManager.syncAppointmentToCloud(context, updatedAppt, targetAlarmTime)
+                        if (targetAlarmTime <= currentTime + 120_000L) {
+                            try {
+                                val conn = java.net.URL("https://docpocket-sms-rdv.vercel.app/api/cron").openConnection() as java.net.HttpURLConnection
+                                conn.connectTimeout = 4000
+                                conn.readTimeout = 4000
+                                conn.requestMethod = "GET"
+                                conn.responseCode
+                                conn.disconnect()
+                            } catch (_: Exception) {}
+                        }
                     }
                 } catch (e: Exception) {
                     android.util.Log.w("AppointmentViewModel", "Erreur sync Cloud: ${e.message}")
@@ -391,6 +401,9 @@ class AppointmentViewModel(application: Application) : AndroidViewModel(applicat
                 smsSender.sendReminders(listOf(toSend)) { id ->
                     viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                         appointmentDao.markSmsAsSent(id)
+                        val docKey = appointment.firebaseKey?.takeIf { it.isNotBlank() }
+                            ?: "appt_${com.docpocket.smsrdv.firebase.FirebaseSyncManager.getDoctorId(getApplication())}_${id}"
+                        com.docpocket.smsrdv.firebase.FirebaseSyncManager.markSmsSentInCloud(docKey)
                     }
                 }
             } catch (e: Exception) {

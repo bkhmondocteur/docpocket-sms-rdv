@@ -1,8 +1,8 @@
 {
-  "versionCode": 11,
-  "versionName": "1.0.2",
-  "releaseDate": "2026-11-26",
-  "changelog": "- ☁️ Correctif critique réveil Firebase FCM 100% Cloud (maintien du WakeLock jusqu'à l'envoi SIM réel)\n- 🔑 Keygen enrichi : liste des médecins, copie de clé en 1 clic et révocation/réactivation à distance\n- 🛡️ Vérification temps réel de révocation de licence + profil unique synchronisé sans doublon Dr",
-  "downloadUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/download/v1.0.2/DocPocket-SMS-RDV.apk",
-  "releaseUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/tag/v1.0.2"
+  "versionCode": 12,
+  "versionName": "1.0.3",
+  "releaseDate": "2026-11-27",
+  "changelog": "- 🔗 Coordination complète entre DocPocket Cab et DocPocket SMS RDV (profil unifié, format de date aligné, révocation partagée)\n- ⚡ Marquage Cloud immédiat lors de l'envoi manuel + réveil Cloud automatique pour les rappels proches (< 2 min)\n- ☁️ Compatible 100% Cloud 24/7 via cron-job.org et Firebase FCM",
+  "downloadUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/download/v1.0.3/DocPocket-SMS-RDV.apk",
+  "releaseUrl": "https://github.com/bkhmondocteur/docpocket-sms-rdv/releases/tag/v1.0.3"
 }
