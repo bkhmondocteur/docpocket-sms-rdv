@@ -106,6 +106,15 @@ async function markSentInFirestore(token, docName, now) {
 }
 
 module.exports = async function handler(req, res) {
+    // En-têtes CORS pour autoriser les requêtes cross-origin depuis DocPocket Cab (Web / PWA / Mobile)
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
     try {
         const key = getServiceAccount();
         const token = await getAccessToken(key);
