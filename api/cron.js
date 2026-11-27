@@ -117,6 +117,8 @@ module.exports = async function handler(req, res) {
             listAllDocs(token, 'rendezvous')
         ]);
 
+        const normalizeDoctorId = (id) => String(id || '').trim().toLowerCase().replace(/^(docteur_|dr_)/, '');
+
         const devicesByDoctorId = new Map();
         for (const d of deviceDocs) {
             const docKey = d.name.split('/').pop();
@@ -124,9 +126,11 @@ module.exports = async function handler(req, res) {
             const doctorId = f.doctorId?.stringValue || docKey;
             const isLicensed = f.isLicensed?.booleanValue !== false && f.licenseActive?.booleanValue !== false;
             const fcmToken = f.fcmToken?.stringValue || '';
-            const entry = { isLicensed, fcmToken };
+            const entry = { doctorId, isLicensed, fcmToken };
             devicesByDoctorId.set(docKey, entry);
             devicesByDoctorId.set(doctorId, entry);
+            const normKey = normalizeDoctorId(doctorId);
+            if (normKey) devicesByDoctorId.set(normKey, entry);
         }
 
         const triggered = [];
@@ -144,6 +148,7 @@ module.exports = async function handler(req, res) {
             const apptTimestamp = parseAppointmentTimestamp(dateRdv, heureRdv);
             const docName = doc.name;
             const doctorId = fields.doctorId?.stringValue || '';
+            const normDoctorId = normalizeDoctorId(doctorId);
 
             // 1. SÉCURITÉ ANTI-ENVOI TARDIF : RDV déjà passé de plus de 2h -> ne jamais envoyer
             if (apptTimestamp && apptTimestamp < (now - 2 * 3600 * 1000)) {
@@ -152,8 +157,8 @@ module.exports = async function handler(req, res) {
                 continue;
             }
 
-            // 2. Vérifier la licence du médecin dans Firestore
-            const device = doctorId ? devicesByDoctorId.get(doctorId) : null;
+            // 2. Vérifier la licence du médecin dans Firestore (avec normalisation dr_)
+            const device = (doctorId ? (devicesByDoctorId.get(doctorId) || devicesByDoctorId.get(normDoctorId)) : null);
             if (device && !device.isLicensed) {
                 revokedSkipped.push({ patient: fields.nomPatient?.stringValue || '', doctorId });
                 continue;
@@ -173,7 +178,7 @@ module.exports = async function handler(req, res) {
                     dateRdv,
                     heureRdv,
                     language: fields.language?.stringValue || 'fr',
-                    doctorId,
+                    doctorId: (device && device.doctorId) || normDoctorId || doctorId,
                     doctorName: fields.doctorName?.stringValue || ''
                 };
 
